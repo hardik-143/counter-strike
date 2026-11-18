@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Last Fuse — tactical bomb-defusal shooter</title>
+<meta name="description" content="A browser tactical shooter: buy rounds, bomb plant & defuse, bots, two-site map. Rendered entirely with canvas — no 3D models.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="world"></canvas>
+<canvas id="hud"></canvas>
+
+<div id="menu" class="overlay">
+  <div class="card">
+    <h1>LAST <span>FUSE</span></h1>
+    <p class="tag">Tactical bomb-defusal shooter · 5v5 with bots · map: <b>Sandline</b></p>
+    <div class="grid">
+      <label>Team
+        <select id="opt-team"><option value="auto">Auto-assign</option><option value="R">Raiders (attack · plant)</option><option value="W">Wardens (defend · defuse)</option></select>
+      </label>
+      <label>Bot skill
+        <select id="opt-diff"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option><option value="expert">Expert</option></select>
+      </label>
+      <label>Players per team
+        <select id="opt-size"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+      </label>
+      <label>Match length
+        <select id="opt-rounds"><option value="5">First to 5</option><option value="8">First to 8</option><option value="13">First to 13</option><option value="16">First to 16 (full)</option></select>
+      </label>
+      <label>Mouse sensitivity <output id="out-sens"></output>
+        <input id="opt-sens" type="range" min="0.2" max="3" step="0.05">
+      </label>
+      <label>Volume <output id="out-vol"></output>
+        <input id="opt-vol" type="range" min="0" max="1" step="0.05">
+      </label>
+      <label>Field of view <output id="out-fov"></output>
+        <input id="opt-fov" type="range" min="75" max="105" step="1">
+      </label>
+      <label>Render resolution
+        <select id="opt-quality"><option value="low">Retro (fastest)</option><option value="fast">Balanced</option><option value="high">Sharp</option></select>
+      </label>
+      <label class="chk"><input id="opt-voice" type="checkbox"> Announcer voice</label>
+      <label class="chk"><input id="opt-fs" type="checkbox"> Fullscreen (lets Ctrl crouch safely)</label>
+    </div>
+    <button id="btn-start" class="primary">DEPLOY vs BOTS</button>
+    <section id="mp" class="lan">
+      <h3>MULTIPLAYER</h3>
+      <div class="grid">
+        <label>Your name <input id="lan-name" maxlength="16" autocomplete="off"></label>
+        <label>Preferred side
+          <select id="lan-team"><option value="A">Auto-assign</option><option value="R">Raiders</option><option value="W">Wardens</option></select>
+        </label>
+      </div>
+      <p class="fine">Online: one player creates a room and shares the 5-letter code or link. Works over the internet, no install.</p>
+      <div class="row">
+        <button id="btn-online-host" class="primary alt">CREATE ONLINE ROOM</button>
+        <input id="room-code" maxlength="5" placeholder="ROOM CODE" autocomplete="off" spellcheck="false">
+        <button id="btn-online-join" class="primary alt">JOIN ROOM</button>
+      </div>
+      <div id="lan" class="hidden">
+        <p class="fine" id="lan-addr"></p>
+        <button id="btn-host" class="primary alt">HOST LAN GAME</button>
+        <button id="btn-join" class="primary alt">JOIN LAN GAME</button>
+      </div>
+      <p class="fine warn" id="lan-msg"></p>
+    </section>
+    <details class="help">
+      <summary>Controls &amp; rules</summary>
+      <div class="cols">
+        <ul>
+          <li><b>WASD</b> move · <b>Mouse</b> aim · <b>LMB</b> fire · <b>RMB</b> scope / knife stab</li>
+          <li><b>C</b> or <b>Ctrl</b> crouch · <b>Shift</b> walk (silent) · <b>Space</b> jump</li>
+          <li><b>1</b> primary · <b>2</b> pistol · <b>3</b> knife · <b>4</b> grenades · <b>5</b> bomb</li>
+          <li><b>R</b> reload · <b>Q</b> last weapon · <b>G</b> drop · <b>E</b> use / defuse / pick up</li>
+          <li><b>B</b> buy menu · <b>Tab</b> scoreboard · <b>Esc</b> pause</li>
+        </ul>
+        <ul>
+          <li>Raiders win by detonating the bomb or eliminating the Wardens.</li>
+          <li>Wardens win by defusing, eliminating the Raiders, or running out the clock.</li>
+          <li>Start with $800. Win: $3250 (bomb/defuse $3500). Loss: $1400, +$500 per consecutive loss. Kill: $300.</li>
+          <li>Stand still / crouch to shoot accurately. Tap or burst at range; recoil climbs while spraying.</li>
+          <li>Waist-high crates are cover: crouch behind them, peek over them standing.</li>
+        </ul>
+      </div>
+    </details>
+    <p class="fine">Original game inspired by classic tactical team shooters. All graphics and sound are generated in code.</p>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <div class="card small">
+    <h2>Paused</h2>
+    <button id="btn-resume" class="primary">Resume</button>
+    <button id="btn-quit">Quit to menu</button>
+    <p class="fine">Mouse look needs pointer lock — click Resume to recapture the mouse.</p>
+  </div>
+</div>
+
+<div id="buy" class="hidden">
+  <div class="buy-head"><b>BUY MENU</b><span id="buy-money"></span><span id="buy-time"></span><span class="fine">number keys or click · B / Esc to close</span></div>
+  <div id="buy-cats"></div>
+</div>
+
+<div id="end" class="overlay hidden">
+  <div class="card small">
+    <h2 id="end-title">VICTORY</h2>
+    <p id="end-sub"></p>
+    <p id="end-stats"></p>
+    <button id="btn-again" class="primary">Play again</button>
+    <button id="btn-menu">Main menu</button>
+  </div>
+</div>
+
+<div id="lobby" class="overlay hidden">
+  <div class="card">
+    <h2>LAN LOBBY</h2>
+    <p id="lob-status" class="tag"></p>
+    <p id="lob-room" class="room hidden"></p>
+    <div id="lob-teams" class="lob-teams"></div>
+    <div id="lob-host-opts" class="grid">
+      <label>Mode
+        <select id="lob-mode"><option value="team">Team match (pick a side)</option><option value="duel">1v1 duel (no bots)</option></select>
+      </label>
+      <label id="lob-bots-wrap">Fill each team with bots up to
+        <select id="lob-bots"><option value="0">0 (humans only)</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5" selected>5</option></select>
+      </label>
+      <label>Match length
+        <select id="lob-rounds"><option value="5">First to 5</option><option value="8" selected>First to 8</option><option value="13">First to 13</option><option value="16">First to 16</option></select>
+      </label>
+      <label>Bot skill
+        <select id="lob-diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option><option value="expert">Expert</option></select>
+      </label>
+    </div>
+    <p class="fine warn" id="lob-note"></p>
+    <button id="lob-start" class="primary">Start</button>
+    <button id="lob-leave">Leave lobby</button>
+  </div>
+</div>
+
+<div id="mobile" class="overlay hidden"><div class="card small"><h2>Desktop only</h2><p>Last Fuse needs a keyboard and mouse.</p></div></div>
+
+<script src="js/core.js"></script>
+<script src="js/sfx.js"></script>
+<script src="js/weapons.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/game.js"></script>
+<script src="js/net.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
