@@ -174,3 +174,15 @@ function projectPoint(cam, x, y, z, SW, SH) {
   const sx = RND.W / 2 + lat / depth * RND.ps, sy = RND.horizon - (z - cam.z) * RND.ps / depth;
   return { x: sx * SW / RND.W, y: sy * SH / RND.H, d: depth };
 }
+
+// Render the current map from `cam` into a fresh offscreen canvas (used for menu previews).
+function renderToCanvas(cam, W, H, sprites) {
+  const saved = Object.assign({}, RND);
+  const c = makeCanvas(W, H);
+  RND.canvas = c; RND.ctx = c.getContext('2d'); RND.W = W; RND.H = H;
+  RND.img = RND.ctx.createImageData(W, H); RND.buf = new Uint32Array(RND.img.data.buffer);
+  RND.zbuf = new Float32Array(W); RND.occD = new Float32Array(W * 3); RND.occY = new Float32Array(W * 3); RND.occN = new Uint8Array(W);
+  RND.colAng = new Float32Array(W); RND.skyU = new Int32Array(W); RND.fovKey = '';
+  try { renderScene(cam, sprites || []); } finally { Object.assign(RND, saved); }
+  return c;
+}

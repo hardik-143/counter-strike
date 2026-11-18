@@ -371,6 +371,7 @@ const LOBBY = {
     const n = L.players.length;
     startBtn.disabled = mode === 'duel' ? n < 2 : n < 1;
     startBtn.textContent = mode === 'duel' ? (n < 2 ? 'Waiting for a 2nd player' : 'Start 1v1 duel') : 'Start team match';
+    if (typeof MENU !== 'undefined') MENU.lobbyMaps();
   },
 };
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

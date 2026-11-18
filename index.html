@@ -5,90 +5,151 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Last Fuse — tactical bomb-defusal shooter</title>
 <meta name="description" content="A browser tactical shooter: buy rounds, bomb plant & defuse, bots, two-site map. Rendered entirely with canvas — no 3D models.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <canvas id="world"></canvas>
 <canvas id="hud"></canvas>
 
-<div id="menu" class="overlay">
-  <div class="card">
-    <h1>LAST <span>FUSE</span></h1>
-    <p class="tag">Tactical bomb-defusal shooter · 5v5 with bots · 6 maps · 19 weapons</p>
-    <div class="grid">
-      <label>Map
-        <select id="opt-map"></select>
-      </label>
-      <label>Team
-        <select id="opt-team"><option value="auto">Auto-assign</option><option value="R">Raiders (attack · plant)</option><option value="W">Wardens (defend · defuse)</option></select>
-      </label>
-      <label>Bot skill
-        <select id="opt-diff"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option><option value="expert">Expert</option></select>
-      </label>
-      <label>Players per team
-        <select id="opt-size"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
-      </label>
-      <label>Match length
-        <select id="opt-rounds"><option value="5">First to 5</option><option value="8">First to 8</option><option value="13">First to 13</option><option value="16">First to 16 (full)</option></select>
-      </label>
-      <label>Mouse sensitivity <output id="out-sens"></output>
-        <input id="opt-sens" type="range" min="0.2" max="3" step="0.05">
-      </label>
-      <label>Volume <output id="out-vol"></output>
-        <input id="opt-vol" type="range" min="0" max="1" step="0.05">
-      </label>
-      <label>Field of view <output id="out-fov"></output>
-        <input id="opt-fov" type="range" min="75" max="105" step="1">
-      </label>
-      <label>Render resolution
-        <select id="opt-quality"><option value="low">Retro (fastest)</option><option value="fast">Balanced</option><option value="high">Sharp</option></select>
-      </label>
-      <label class="chk"><input id="opt-voice" type="checkbox"> Announcer voice</label>
-      <label class="chk"><input id="opt-fs" type="checkbox"> Fullscreen (lets Ctrl crouch safely)</label>
-    </div>
-    <button id="btn-start" class="primary">DEPLOY vs BOTS</button>
-    <section id="mp" class="lan">
-      <h3>MULTIPLAYER</h3>
-      <div class="grid">
-        <label>Your name <input id="lan-name" maxlength="16" autocomplete="off"></label>
-        <label>Preferred side
-          <select id="lan-team"><option value="A">Auto-assign</option><option value="R">Raiders</option><option value="W">Wardens</option></select>
-        </label>
+<div id="menu" class="menu">
+  <aside class="nav">
+    <div class="logo"><span class="l1">LAST</span><span class="l2">FUSE</span></div>
+    <p class="logo-sub">Tactical bomb-defusal shooter</p>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="play" role="tab"><i>▶</i>Play vs bots</button>
+      <button class="tab" data-tab="online" role="tab"><i>⇄</i>Multiplayer</button>
+      <button class="tab" data-tab="armory" role="tab"><i>✦</i>Armory</button>
+      <button class="tab" data-tab="settings" role="tab"><i>⚙</i>Settings</button>
+      <button class="tab" data-tab="help" role="tab"><i>?</i>How to play</button>
+    </nav>
+    <div class="nav-foot">6 maps · 19 weapons · bots, online &amp; LAN<br>Every pixel and sound is generated in code.</div>
+  </aside>
+
+  <main class="panel">
+    <!-- ================= PLAY ================= -->
+    <section class="pane active" id="pane-play">
+      <header class="pane-head"><h2>Choose your battlefield</h2><p>Live previews rendered by the game engine. Pick a map, a side, and deploy.</p></header>
+      <div class="play-layout">
+        <div class="map-cards" id="map-cards"></div>
+        <div class="setup">
+          <div class="map-detail" id="map-detail">
+            <div class="md-shot"><img id="md-img" alt=""><canvas id="md-radar" width="168" height="140"></canvas></div>
+            <div class="md-info"><h3 id="md-name"></h3><p id="md-blurb"></p><div class="md-stats" id="md-stats"></div></div>
+          </div>
+          <div class="field">
+            <span class="lbl">Side</span>
+            <div class="side-cards" data-seg="team">
+              <button data-v="R" class="side side-r"><b>Raiders</b><small>Attack · plant the bomb</small></button>
+              <button data-v="auto" class="side side-a"><b>Auto</b><small>Balance the teams</small></button>
+              <button data-v="W" class="side side-w"><b>Wardens</b><small>Defend · defuse</small></button>
+            </div>
+          </div>
+          <div class="field"><span class="lbl">Bot skill</span>
+            <div class="seg" data-seg="diff"><button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button><button data-v="expert">Expert</button></div>
+            <small class="hint" id="diff-hint"></small>
+          </div>
+          <div class="field-row">
+            <div class="field"><span class="lbl">Players per team</span>
+              <div class="seg" data-seg="size" data-num="1"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button></div>
+            </div>
+            <div class="field"><span class="lbl">First to</span>
+              <div class="seg" data-seg="rounds" data-num="1"><button data-v="5">5</button><button data-v="8">8</button><button data-v="13">13</button><button data-v="16">16</button></div>
+            </div>
+          </div>
+          <button id="btn-start" class="deploy"><span>DEPLOY</span><small id="deploy-sum"></small></button>
+        </div>
       </div>
-      <p class="fine">Online: one player creates a room and shares the 5-letter code or link. Works over the internet, no install.</p>
-      <div class="row">
-        <button id="btn-online-host" class="primary alt">CREATE ONLINE ROOM</button>
-        <input id="room-code" maxlength="5" placeholder="ROOM CODE" autocomplete="off" spellcheck="false">
-        <button id="btn-online-join" class="primary alt">JOIN ROOM</button>
-      </div>
-      <div id="lan" class="hidden">
-        <p class="fine" id="lan-addr"></p>
-        <button id="btn-host" class="primary alt">HOST LAN GAME</button>
-        <button id="btn-join" class="primary alt">JOIN LAN GAME</button>
+    </section>
+
+    <!-- ================= MULTIPLAYER ================= -->
+    <section class="pane" id="pane-online">
+      <header class="pane-head"><h2>Multiplayer</h2><p>Play friends over the internet with a room code, or on your local network. The host picks the map in the lobby.</p></header>
+      <div class="mp-grid">
+        <div class="mp-card">
+          <h3>Your callsign</h3>
+          <label class="inline">Name <input id="lan-name" maxlength="16" autocomplete="off" placeholder="Player"></label>
+          <span class="lbl">Preferred side</span>
+          <div class="seg" id="lan-team-seg"><button data-v="A">Auto</button><button data-v="R">Raiders</button><button data-v="W">Wardens</button></div>
+          <input type="hidden" id="lan-team" value="A">
+        </div>
+        <div class="mp-card hot">
+          <h3>Host a room</h3>
+          <p class="fine">You run the match; friends join with a 5-letter code or invite link. Bots fill empty slots.</p>
+          <button id="btn-online-host" class="deploy small"><span>CREATE ONLINE ROOM</span></button>
+        </div>
+        <div class="mp-card">
+          <h3>Join a room</h3>
+          <p class="fine">Enter the code your host shared.</p>
+          <div class="join-row"><input id="room-code" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false"><button id="btn-online-join" class="deploy small"><span>JOIN</span></button></div>
+        </div>
+        <div class="mp-card" id="lan">
+          <h3>Local network (LAN)</h3>
+          <div id="lan-on" class="hidden">
+            <p class="fine" id="lan-addr"></p>
+            <div class="join-row"><button id="btn-host" class="ghost">Host LAN game</button><button id="btn-join" class="ghost">Join LAN game</button></div>
+          </div>
+          <p class="fine" id="lan-off">Run <code>node server.js</code> from the game folder on one computer, then everyone opens the address it prints. Works offline.</p>
+        </div>
       </div>
       <p class="fine warn" id="lan-msg"></p>
     </section>
-    <details class="help">
-      <summary>Controls &amp; rules</summary>
-      <div class="cols">
-        <ul>
-          <li><b>WASD</b> move · <b>Mouse</b> aim · <b>LMB</b> fire · <b>RMB</b> scope / knife stab</li>
-          <li><b>C</b> or <b>Ctrl</b> crouch · <b>Shift</b> walk (silent) · <b>Space</b> jump</li>
-          <li><b>1</b> primary · <b>2</b> pistol · <b>3</b> knife · <b>4</b> grenades · <b>5</b> bomb</li>
-          <li><b>R</b> reload · <b>Q</b> last weapon · <b>G</b> drop · <b>E</b> use / defuse / pick up</li>
-          <li><b>B</b> buy menu · <b>Tab</b> scoreboard · <b>Esc</b> pause</li>
-        </ul>
-        <ul>
-          <li>Raiders win by detonating the bomb or eliminating the Wardens.</li>
-          <li>Wardens win by defusing, eliminating the Raiders, or running out the clock.</li>
-          <li>Start with $800. Win: $3250 (bomb/defuse $3500). Loss: $1400, +$500 per consecutive loss. Kill: $300.</li>
-          <li>Stand still / crouch to shoot accurately. Tap or burst at range; recoil climbs while spraying.</li>
-          <li>Waist-high crates are cover: crouch behind them, peek over them standing.</li>
+
+    <!-- ================= ARMORY ================= -->
+    <section class="pane" id="pane-armory">
+      <header class="pane-head"><h2>Armory</h2><p>Everything you can buy during a round. Stats are relative; red badges are team-only.</p></header>
+      <div class="seg armory-filter" id="armory-filter"></div>
+      <div class="armory" id="armory"></div>
+    </section>
+
+    <!-- ================= SETTINGS ================= -->
+    <section class="pane" id="pane-settings">
+      <header class="pane-head"><h2>Settings</h2><p>Saved in this browser.</p></header>
+      <div class="settings">
+        <label class="set">Mouse sensitivity <output id="out-sens"></output><input id="opt-sens" type="range" min="0.2" max="3" step="0.05"></label>
+        <label class="set">Field of view <output id="out-fov"></output><input id="opt-fov" type="range" min="75" max="105" step="1"></label>
+        <label class="set">Volume <output id="out-vol"></output><input id="opt-vol" type="range" min="0" max="1" step="0.05"></label>
+        <div class="set"><span>Render resolution</span>
+          <div class="seg" data-seg="quality"><button data-v="low">Retro</button><button data-v="fast">Balanced</button><button data-v="high">Sharp</button></div>
+        </div>
+        <label class="set chk"><input id="opt-voice" type="checkbox"> Announcer voice</label>
+        <label class="set chk"><input id="opt-fs" type="checkbox"> Fullscreen when playing <small>(lets Ctrl crouch without closing the tab)</small></label>
+      </div>
+    </section>
+
+    <!-- ================= HELP ================= -->
+    <section class="pane" id="pane-help">
+      <header class="pane-head"><h2>How to play</h2><p>Raiders win by detonating the bomb or eliminating the Wardens. Wardens win by defusing, eliminating the Raiders, or running out the clock.</p></header>
+      <div class="help-grid">
+        <div class="keys">
+          <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Move</span></div>
+          <div><kbd>Mouse</kbd><span>Aim · click to capture</span></div>
+          <div><kbd>LMB</kbd><span>Fire</span></div>
+          <div><kbd>RMB</kbd><span>Scope · knife stab</span></div>
+          <div><kbd>C</kbd><kbd>Ctrl</kbd><span>Crouch</span></div>
+          <div><kbd>Shift</kbd><span>Walk silently</span></div>
+          <div><kbd>Space</kbd><span>Jump</span></div>
+          <div><kbd>1</kbd>–<kbd>5</kbd><span>Primary · pistol · knife · grenades · bomb</span></div>
+          <div><kbd>R</kbd><span>Reload</span></div>
+          <div><kbd>Q</kbd><span>Last weapon</span></div>
+          <div><kbd>G</kbd><span>Drop weapon</span></div>
+          <div><kbd>E</kbd><span>Use · defuse · pick up</span></div>
+          <div><kbd>B</kbd><span>Buy menu</span></div>
+          <div><kbd>Tab</kbd><span>Scoreboard</span></div>
+          <div><kbd>Esc</kbd><span>Pause</span></div>
+        </div>
+        <ul class="tips">
+          <li><b>Economy.</b> Start with $800. Win a round: $3250 ($3500 for bomb or defuse). Lose: $1400, +$500 per loss in a row. Kill: $300.</li>
+          <li><b>Accuracy.</b> Stand still or crouch to shoot straight. Tap or burst at range; recoil climbs while spraying.</li>
+          <li><b>Cover.</b> Waist-high crates block bullets: crouch behind them, peek over them standing.</li>
+          <li><b>Bomb.</b> Carry it to site A or B, press 5 and hold fire for 3 seconds. It detonates after 35 seconds.</li>
+          <li><b>Defuse.</b> Hold E on the bomb: 10 seconds, or 5 with a defuse kit.</li>
+          <li><b>Utility.</b> Smoke blocks vision and puts out incendiary fire. Flashbangs blind anyone facing them.</li>
         </ul>
       </div>
-    </details>
-    <p class="fine">Original game inspired by classic tactical team shooters. All graphics and sound are generated in code.</p>
-  </div>
+    </section>
+  </main>
 </div>
 
 <div id="pause" class="overlay hidden">
@@ -120,11 +181,10 @@
     <h2>LOBBY</h2>
     <p id="lob-status" class="tag"></p>
     <p id="lob-room" class="room hidden"></p>
+    <div class="lob-maps" id="lob-maps"></div>
     <div id="lob-teams" class="lob-teams"></div>
     <div id="lob-host-opts" class="grid">
-      <label>Map
-        <select id="lob-map"></select>
-      </label>
+      <select id="lob-map" class="hidden" aria-hidden="true"></select>
       <label>Mode
         <select id="lob-mode"><option value="team">Team match (pick a side)</option><option value="duel">1v1 duel (no bots)</option></select>
       </label>
@@ -154,6 +214,7 @@
 <script src="js/ai.js"></script>
 <script src="js/game.js"></script>
 <script src="js/net.js"></script>
+<script src="js/menu.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

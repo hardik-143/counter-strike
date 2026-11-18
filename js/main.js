@@ -12,7 +12,7 @@
   resize(); window.addEventListener('resize', resize);
   // map pickers
   const mapOpts = MAP_DEFS.map(m => `<option value="${m.id}">${m.name} — ${m.blurb}</option>`).join('') + '<option value="random">Random map</option>';
-  $('opt-map').innerHTML = mapOpts; $('lob-map').innerHTML = mapOpts;
+  $('lob-map').innerHTML = mapOpts;
   const previewMap = (id) => { if (id !== 'random' && (!MAP || MAP.id !== id)) loadMap(id); };
   previewMap(MAP_DEFS.some(m => m.id === G.settings.map) ? G.settings.map : 'sandline');
 
@@ -26,12 +26,11 @@
     if (out) $(out).textContent = fmt(S[key]);
   };
   const onSetting = (k) => { if (k === 'vol') SFX.setVolume(S.vol); if (k === 'voice') SFX.setVoice(S.voice); if (k === 'quality') resize(); };
-  bind('opt-map', 'map', String); $('opt-map').addEventListener('change', () => previewMap($('opt-map').value));
-  bind('opt-team', 'team', String); bind('opt-diff', 'diff', String); bind('opt-size', 'size', Number); bind('opt-rounds', 'rounds', Number);
   bind('opt-sens', 'sens', Number, 'out-sens', v => v.toFixed(2)); bind('opt-vol', 'vol', Number, 'out-vol', v => Math.round(v * 100) + '%');
-  bind('opt-fov', 'fov', Number, 'out-fov', v => v + '°'); bind('opt-quality', 'quality', String);
+  bind('opt-fov', 'fov', Number, 'out-fov', v => v + '°');
   bind('opt-voice', 'voice', Boolean); bind('opt-fs', 'fullscreen', Boolean);
   SFX.setVolume(S.vol); SFX.setVoice(S.voice);
+  MENU.init({ onSetting, previewMap });
 
   if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && !matchMedia('(pointer:fine)').matches) $('mobile').classList.remove('hidden');
 
@@ -83,13 +82,13 @@
   const lanName = () => { const n = $('lan-name').value.trim() || 'Player' + Math.floor(Math.random() * 90 + 10); try { localStorage.setItem('lastfuse.name', n); } catch (e) { } return n; };
   netProbe().then((ok) => {
     if (!ok) return;
-    $('lan').classList.remove('hidden');
+    $('lan-on').classList.remove('hidden'); $('lan-off').classList.add('hidden');
     const ips = NET.info.ips || [];
     $('lan-addr').innerHTML = ips.length ? 'Other players on your network open: ' + ips.map(ip => `<code>http://${ip}:${NET.info.port}</code>`).join(' or ') : 'Server running on this machine.';
   });
   const qRoom = new URLSearchParams(location.search).get('room');
   if (qRoom) { $('room-code').value = qRoom.toUpperCase().slice(0, 5); $('lan-msg').textContent = 'You were invited to room ' + $('room-code').value + ' — enter a name and press JOIN ROOM.'; }
-  $('lob-map').value = $('opt-map').value;
+  $('lob-map').value = G.settings.map;
   $('btn-online-host').onclick = () => { SFX.init(); $('lan-msg').textContent = ''; NET.lobby = null; LOBBY.show(); onlineHost(lanName(), $('lan-team').value); };
   $('btn-online-join').onclick = () => {
     const code = $('room-code').value.trim().toUpperCase();
