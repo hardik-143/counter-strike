@@ -6,14 +6,14 @@ const CFG = { FREEZE: 4, BUY_TIME: 25, ROUND_TIME: 115, BOMB_TIME: 35, PLANT_TIM
 const TEAM_NAME = { R: 'Raiders', W: 'Wardens' };
 const TEAM_HEX = { R: '#e0a050', W: '#7fb6ff' };
 const BOT_NAMES = ['Hollis', 'Ramos', 'Okafor', 'Brandt', 'Kovac', 'Lindqvist', 'Sato', 'Moreau', 'Haddad', 'Petrov', 'Quinn', 'Duarte', 'Novak', 'Reyes', 'Vance', 'Achebe', 'Ibsen', 'Marsh', 'Toro', 'Wexley'];
-const DEFAULT_SETTINGS = { team: 'auto', diff: 'normal', size: 5, rounds: 8, sens: 1.0, vol: 0.6, quality: 'fast', voice: true, fullscreen: true, fov: 90, name: 'You' };
+const DEFAULT_SETTINGS = { map: 'sandline', team: 'auto', diff: 'normal', size: 5, rounds: 8, sens: 1.0, vol: 0.6, quality: 'fast', voice: true, fullscreen: true, fov: 90, name: 'You' };
 
 function loadSettings() { try { return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem('lastfuse.settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULT_SETTINGS); } }
 function saveSettings() { try { localStorage.setItem('lastfuse.settings', JSON.stringify(G.settings)); } catch (e) { } }
 
 const G = {
   state: 'menu', paused: false, players: [], human: null, viewP: null, specIdx: 0, cam: { x: 20, y: 13, z: STAND_EYE, yaw: 0, pitch: 0, fov: 1.6 },
-  bomb: null, items: [], nades: [], smokes: [], fx: [], noises: [], feed: [], chat: [],
+  bomb: null, items: [], nades: [], smokes: [], fires: [], fx: [], noises: [], feed: [], chat: [],
   round: 0, score: { R: 0, W: 0 }, lossStreak: { R: 0, W: 0 }, phase: 'freeze', phaseT: 0, roundT: 0, liveT: 0,
   time: 0, center: null, matchWinner: null, buyOpen: false, buyCat: -1, showScores: false, hitMarkT: 0, hurtT: 0, hurtDir: 0,
   bombPlantedThisRound: false, settings: loadSettings(), test: false,
@@ -25,7 +25,7 @@ function newPlayer(name, team, isBot) {
   return {
     id: PID++, name, team, isBot, x: 0, y: 0, z: 0, vz: 0, vx: 0, vy: 0, speed: 0, yaw: 0, pitch: 0, punchP: 0, punchY: 0, crouch: 0,
     hp: 100, armor: 0, helmet: false, kit: false, money: CFG.START_MONEY, alive: true, slots: { 1: null, 2: null, 3: null },
-    nades: { he: 0, flash: 0, smoke: 0 }, nadeSel: 'he', hasBomb: false, cur: 2, last: 3, drawT: 0, drawMax: 0.6, accum: 0, shotsFired: 0, sprayDir: 1,
+    nades: { he: 0, flash: 0, smoke: 0, fire: 0 }, nadeSel: 'he', hasBomb: false, cur: 2, last: 3, drawT: 0, drawMax: 0.6, accum: 0, shotsFired: 0, sprayDir: 1,
     nextFire: 0, lastShotT: -9, zoom: 0, rezoom: 0, rezoomT: 0, kills: 0, deaths: 0, hs: 0, stepT: 0, walkPhase: 0, flash: 0, flashMax: 0,
     plantProg: 0, keyT: 0, defusing: false, fireFlashT: 0, vmKick: 0, vmSwing: 0, throwT: 0, thrown: false, firing: false, deathT: 0, spottedT: -9, lastHitT: -9,
     in: { mx: 0, my: 0, mag: 0, fire: false, fireP: false, alt: false, altP: false, use: false, crouch: false, walk: false, jump: false, reload: false, slot: 0, drop: false },
@@ -37,18 +37,18 @@ function bodyH(p) { return p.z + lerp(STAND_H, CROUCH_H, p.crouch); }
 function curW(p) { return p.cur <= 3 ? p.slots[p.cur] : null; }
 function curWeaponDef(p) { const w = curW(p); return w ? w.def : null; }
 function mkWeapon(key) { const d = WEAPONS[key]; return { key, def: d, mag: d.mag || 0, reserve: d.reserve || 0, reloadT: 0 }; }
-function totalNades(p) { return p.nades.he + p.nades.flash + p.nades.smoke; }
+function totalNades(p) { return p.nades.he + p.nades.flash + p.nades.smoke + p.nades.fire; }
 function bestSlot(p) { return p.slots[1] ? 1 : p.slots[2] ? 2 : 3; }
 function addMoney(p, m) { p.money = clamp(p.money + m, 0, CFG.MAX_MONEY); }
 function alive(team) { let n = 0; for (const p of G.players) if (p.alive && p.team === team) n++; return n; }
 function enemyOf(t) { return t === 'R' ? 'W' : 'R'; }
 function resetLoadout(p) {
   p.slots = { 1: null, 2: mkWeapon(p.team === 'R' ? 'p9' : 'k45'), 3: mkWeapon('knife') };
-  p.nades = { he: 0, flash: 0, smoke: 0 }; p.armor = 0; p.helmet = false; p.kit = false; p.hasBomb = false;
+  p.nades = { he: 0, flash: 0, smoke: 0, fire: 0 }; p.armor = 0; p.helmet = false; p.kit = false; p.hasBomb = false;
 }
 function nextNade(p, from) {
-  const order = ['he', 'flash', 'smoke']; let i = order.indexOf(from);
-  for (let k = 1; k <= 3; k++) { const t = order[(i + k) % 3]; if (p.nades[t] > 0) return t; }
+  const order = ['he', 'flash', 'smoke', 'fire']; let i = order.indexOf(from);
+  for (let k = 1; k <= 4; k++) { const t = order[(i + k) % 4]; if (p.nades[t] > 0) return t; }
   return from;
 }
 function switchSlot(p, slot) {
@@ -128,7 +128,7 @@ function updatePlayer(p, dt) {
 // ------------------------------------------------------------ weapons
 function computeSpread(p, d) {
   const S = d.spread;
-  let base = (d.type === 'sniper' && p.zoom > 0) ? S.scoped : S.base;
+  let base = (p.zoom > 0 && S.scoped !== undefined) ? S.scoped : S.base;
   const mv = clamp(p.speed / (RUN_SPEED * 0.9), 0, 1);
   let sp = base + S.move * Math.max(0, (mv - 0.2) / 0.8);
   if (p.z > 0.02) sp += 0.15;
@@ -224,7 +224,7 @@ function fireGun(p, w) {
   p.punchY = clamp(p.punchY + (Math.random() - 0.5) * d.side * 2 + (p.shotsFired > 4 ? p.sprayDir * d.side : 0), -0.09, 0.09);
   if (d.spread) p.accum = Math.min(d.spread.max, p.accum + d.spread.perShot);
   p.fireFlashT = 0.05; p.vmKick = 1;
-  if (d.type === 'sniper' && p.zoom > 0) { p.rezoom = p.zoom; p.zoom = 0; p.rezoomT = G.time + d.rate * 0.9; }
+  if (d.type === 'sniper' && p.zoom > 0 && d.rate > 0.6) { p.rezoom = p.zoom; p.zoom = 0; p.rezoomT = G.time + d.rate * 0.9; }
   if (hit) { ownSnd(p, hs ? 'head' : 'hitmark'); if (p === G.human) G.hitMarkT = 0.15; else netTo(p, ['hm']); }
   if (w.mag === 0 && w.reserve > 0 && p.isBot) startReload(p);
 }
@@ -384,7 +384,7 @@ function throwNade(p) {
   let x = p.x + Math.cos(yaw) * 0.25, y = p.y + Math.sin(yaw) * 0.25; if (solidAt(x, y)) { x = p.x; y = p.y; }
   G.nades.push({ type, x, y, z: eyeZ(p) - 0.08, vx: Math.cos(yaw) * ch * sp + p.vx * 0.4, vy: Math.sin(yaw) * ch * sp + p.vy * 0.4, vz: Math.sin(pit) * sp, t: 0, owner: p, team: p.team, rest: false });
   ownSnd(p, 'throw');
-  if (p.isBot && Math.random() < 0.6) radio(p, type === 'he' ? 'Fire in the hole!' : type === 'flash' ? 'Flashbang out!' : 'Smoke out!');
+  if (p.isBot && Math.random() < 0.6) radio(p, type === 'he' ? 'Fire in the hole!' : type === 'flash' ? 'Flashbang out!' : type === 'fire' ? 'Incendiary out!' : 'Smoke out!');
 }
 function nadeSolid(x, y, z) { const cx = Math.floor(x), cy = Math.floor(y); if (cx < 0 || cy < 0 || cx >= MW || cy >= MH) return true; const w = mapWall[cy * MW + cx]; if (!w) return false; if (w === W_LOW) return z < CRATE_H; return true; }
 function groundZ(x, y) { const cx = Math.floor(x), cy = Math.floor(y); return (cx >= 0 && cy >= 0 && cx < MW && cy < MH && mapWall[cy * MW + cx] === W_LOW) ? CRATE_H : 0; }
@@ -407,12 +407,14 @@ function updateNades(dt) {
       }
     }
     const fuse = n.type === 'smoke' ? (n.rest ? Math.min(n.t, 1.2) + 99 : 2.6) : 1.6;
-    if ((n.type !== 'smoke' && n.t >= fuse) || (n.type === 'smoke' && (n.t >= 2.6 || (n.rest && n.t > 1.0)))) {
+    const landed = n.type === 'fire' && (n.rest || (n.t > 0.25 && n.z < groundZ(n.x, n.y) + 0.1 && Math.abs(n.vz) < 2.5));
+    if ((n.type !== 'smoke' && n.type !== 'fire' && n.t >= fuse) || (n.type === 'smoke' && (n.t >= 2.6 || (n.rest && n.t > 1.0))) || (n.type === 'fire' && (landed || n.t >= 2.2))) {
       G.nades.splice(i, 1);
-      if (n.type === 'he') explodeHE(n); else if (n.type === 'flash') explodeFlash(n); else popSmoke(n);
+      if (n.type === 'he') explodeHE(n); else if (n.type === 'flash') explodeFlash(n); else if (n.type === 'fire') popFire(n); else popSmoke(n);
     }
   }
   for (let i = G.smokes.length - 1; i >= 0; i--) { const s = G.smokes[i]; s.t += dt; if (s.t > s.life) G.smokes.splice(i, 1); }
+  updateFires(dt);
   for (let i = G.fx.length - 1; i >= 0; i--) {
     const f = G.fx[i]; f.t += dt;
     if (f.vz) { f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt; }
@@ -460,6 +462,37 @@ function popSmoke(n) {
   }
   G.smokes.push({ x: n.x, y: n.y, t: 0, life: 17, puffs });
 }
+function popFire(n) {
+  SFX.play('explode', n.x, n.y);
+  for (const s of G.smokes) if (smokeAlpha(s) > 0.3 && Math.hypot(s.x - n.x, s.y - n.y) < 2.2) { addFx('puff', n.x, n.y, 0.3, 0.8, 1.2, true); return; } // smoke snuffs it out
+  const flames = [];
+  for (let i = 0; i < 16; i++) {
+    const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * 1.7;
+    let fx = n.x + Math.cos(a) * r, fy = n.y + Math.sin(a) * r;
+    if (solidAt(fx, fy)) { fx = n.x + Math.cos(a) * r * 0.3; fy = n.y + Math.sin(a) * r * 0.3; }
+    flames.push({ x: fx, y: fy, s: rand(0.5, 0.95), ph: Math.random() * TAU });
+  }
+  G.fires.push({ x: n.x, y: n.y, t: 0, life: 7, r: 1.8, owner: n.owner, team: n.team, tick: 0, flames });
+}
+function updateFires(dt) {
+  for (let i = G.fires.length - 1; i >= 0; i--) {
+    const f = G.fires[i]; f.t += dt; f.tick -= dt;
+    let out = f.t > f.life;
+    for (const s of G.smokes) if (smokeAlpha(s) > 0.5 && Math.hypot(s.x - f.x, s.y - f.y) < 2.4) out = true;
+    if (out) { G.fires.splice(i, 1); continue; }
+    if (f.tick <= 0) {
+      f.tick = 0.25;
+      for (const p of G.players) {
+        if (!p.alive || p.z > 0.4) continue;
+        if (p.team === f.team && p !== f.owner) continue;
+        if (Math.hypot(p.x - f.x, p.y - f.y) > f.r) continue;
+        applyDamage(p, p === f.owner ? null : f.owner, 10, 'legs', { pen: 1, name: 'Incendiary' }, 0, true);
+      }
+      if (Math.random() < 0.5) SFX.play('smoke', f.x, f.y);
+    }
+  }
+}
+function fireAt(x, y) { for (const f of G.fires) if (Math.hypot(x - f.x, y - f.y) < f.r + 0.3) return f; return null; }
 function smokeAlpha(s) { return clamp(s.t / 1.2, 0, 1) * clamp((s.life - s.t) / 2.5, 0, 1); }
 function smokeBlocks(ax, ay, bx, by) {
   for (const s of G.smokes) {
@@ -501,6 +534,7 @@ function itemOwned(p, key) {
     case 'he': return p.nades.he >= 1;
     case 'flash': return p.nades.flash >= 2;
     case 'smoke': return p.nades.smoke >= 1;
+    case 'fire': return p.nades.fire >= 1;
     case 'kit': return p.kit;
   }
   return false;
@@ -527,6 +561,7 @@ function tryBuy(p, key, quiet) {
       case 'he': p.nades.he++; break;
       case 'flash': p.nades.flash++; break;
       case 'smoke': p.nades.smoke++; break;
+      case 'fire': p.nades.fire++; break;
       case 'kit': p.kit = true; break;
     }
   }
@@ -537,6 +572,10 @@ function tryBuy(p, key, quiet) {
 // ------------------------------------------------------------ rounds
 function setupMatch(roster) {
   const S = G.settings;
+  const want = S.map === 'random' ? pick(MAP_DEFS).id : (S.map || 'sandline');
+  G.mapId = want;
+  G.tPlan = null; G.ctPlan = null;
+  if (!MAP || MAP.id !== want) loadMap(want);
   PID = 0; G.players = []; G.round = 0; G.score = { R: 0, W: 0 }; G.lossStreak = { R: 0, W: 0 }; G.matchWinner = null; G.feed = []; G.chat = []; G.time = 0;
   let team = S.team; if (team === 'auto') team = Math.random() < 0.5 ? 'R' : 'W';
   const names = shuffle(BOT_NAMES.slice());
@@ -557,7 +596,7 @@ function setupMatch(roster) {
 }
 function pickSpawns(team, n) {
   const cells = shuffle(SPAWNS[team].slice()), out = [];
-  const ctr = team === 'R' ? [20.5, 30.5] : [20, 3.5];
+  const ctr = team === 'R' ? SPAWNS.rc : SPAWNS.wc;
   cells.sort((a, b) => Math.hypot(a[0] - ctr[0], a[1] - ctr[1]) - Math.hypot(b[0] - ctr[0], b[1] - ctr[1]) + rand(-3, 3));
   for (const c of cells) {
     if (out.length >= n) break;
@@ -569,7 +608,7 @@ function pickSpawns(team, n) {
 function startRound() {
   G.round++; G.phase = 'freeze'; G.phaseT = CFG.FREEZE; G.roundT = CFG.ROUND_TIME; G.liveT = 0; G.bombPlantedThisRound = false;
   G.bomb = { state: 'none', x: 0, y: 0, carrier: null, timer: 0, defuseProg: 0, defuser: null, beepT: 0, site: null, led: 0 };
-  G.items = []; G.nades = []; G.smokes = []; G.fx = []; G.noises = []; G.specT = 0; G.killer = null; G.shakeT = 0;
+  G.items = []; G.nades = []; G.smokes = []; G.fires = []; G.fx = []; G.noises = []; G.specT = 0; G.killer = null; G.shakeT = 0;
   for (const t of ['R', 'W']) {
     const team = G.players.filter(p => p.team === t);
     const sp = pickSpawns(t, team.length);
@@ -577,7 +616,7 @@ function startRound() {
       if (!p.alive || G.round === 1) resetLoadout(p);
       if (G.round === 1) p.money = CFG.START_MONEY;
       p.alive = true; p.hp = 100; p.x = sp[i][0]; p.y = sp[i][1]; p.z = 0; p.vz = 0; p.vx = p.vy = 0; p.speed = 0;
-      p.yaw = (t === 'R' ? -Math.PI / 2 : Math.PI / 2) + rand(-0.3, 0.3); p.pitch = 0; p.punchP = p.punchY = 0; p.crouch = 0;
+      { const tg = t === 'R' ? [(SITES.A.cx + SITES.B.cx) / 2, (SITES.A.cy + SITES.B.cy) / 2] : [SPAWNS.rc[0], SPAWNS.rc[1]]; p.yaw = Math.atan2(tg[1] - p.y, tg[0] - p.x) + rand(-0.3, 0.3); } p.pitch = 0; p.punchP = p.punchY = 0; p.crouch = 0;
       p.flash = 0; p.zoom = 0; p.rezoomT = 0; p.plantProg = 0; p.defusing = false; p.accum = 0; p.throwT = 0; p.hasBomb = false;
       for (const k of [1, 2, 3]) if (p.slots[k]) p.slots[k].reloadT = 0;
       p.cur = 0; switchSlot(p, bestSlot(p)); p.drawT = 0; p.sp = (p.sp || 0) + 1;
@@ -957,7 +996,7 @@ function drawHUD() {
     const tag = (t, col) => { const w = g.measureText(t).width + 14; panel(g, ix, SH - 44, w, 26); g.fillStyle = col; g.fillText(t, ix + 7, SH - 31); ix += w + 6; };
     if (sp.hasBomb) tag('💣 BOMB', '#ff7766');
     if (sp.kit) tag('✂ KIT', '#9fc6ff');
-    if (sp.nades.he) tag('HE', '#a6c27a'); if (sp.nades.flash) tag('FL×' + sp.nades.flash, '#ddd'); if (sp.nades.smoke) tag('SM', '#bbb');
+    if (sp.nades.he) tag('HE', '#a6c27a'); if (sp.nades.flash) tag('FL×' + sp.nades.flash, '#ddd'); if (sp.nades.smoke) tag('SM', '#bbb'); if (sp.nades.fire) tag('INC', '#ff9a50');
     // ammo
     const w = curW(sp);
     panel(g, SW - 232, SH - 62, 220, 50);
@@ -966,7 +1005,7 @@ function drawHUD() {
       g.font = 'bold 30px "Trebuchet MS", sans-serif'; g.fillStyle = w.mag <= Math.ceil(w.def.mag * 0.2) ? '#ff6a5a' : '#f2f2f2';
       g.fillText(w.mag, SW - 110, SH - 36);
       g.font = 'bold 18px "Trebuchet MS", sans-serif'; g.fillStyle = '#aaa'; g.fillText('/ ' + w.reserve, SW - 30, SH - 34);
-    } else { g.font = 'bold 20px "Trebuchet MS", sans-serif'; g.fillStyle = '#ddd'; g.fillText(sp.cur === 4 ? ({ he: 'HE Grenade', flash: 'Flashbang', smoke: 'Smoke' }[sp.nadeSel] + ' ×' + sp.nades[sp.nadeSel]) : sp.cur === 5 ? 'Bomb' : 'Knife', SW - 28, SH - 36); }
+    } else { g.font = 'bold 20px "Trebuchet MS", sans-serif'; g.fillStyle = '#ddd'; g.fillText(sp.cur === 4 ? ({ he: 'HE Grenade', flash: 'Flashbang', smoke: 'Smoke', fire: 'Incendiary' }[sp.nadeSel] + ' ×' + sp.nades[sp.nadeSel]) : sp.cur === 5 ? 'Bomb' : 'Knife', SW - 28, SH - 36); }
     g.font = '11px "Trebuchet MS", sans-serif'; g.fillStyle = '#bbb';
     g.fillText(w ? w.def.name.toUpperCase() + (w.reloadT > 0 ? '  ·  RELOADING' : '') : '', SW - 28, SH - 72);
   }
@@ -1043,7 +1082,7 @@ function drawScoreboard(g, SW, SH) {
   g.textBaseline = 'middle';
   let yy = y + 26;
   g.textAlign = 'center'; g.font = 'bold 18px "Trebuchet MS", sans-serif'; g.fillStyle = '#fff';
-  g.fillText(`Sandline  ·  Round ${G.round}  ·  ${G.score.R} : ${G.score.W}`, SW / 2, yy); yy += 30;
+  g.fillText(`${MAP ? MAP.name : ''}  ·  Round ${G.round}  ·  ${G.score.R} : ${G.score.W}`, SW / 2, yy); yy += 30;
   for (const t of teams) {
     g.textAlign = 'left'; g.font = 'bold 15px "Trebuchet MS", sans-serif'; g.fillStyle = TEAM_HEX[t];
     g.fillText(`${TEAM_NAME[t].toUpperCase()}  ${G.score[t]}`, x + 20, yy);
@@ -1088,6 +1127,10 @@ function gatherSprites(cam, vp) {
   if (B.state === 'dropped' || B.state === 'planted' || B.state === 'defused') L.push({ x: B.x, y: B.y, z: 0, w: 0.36, h: 0.18, tex: (B.state === 'planted' && B.led > 0) ? SPR.bomb1 : SPR.bomb0 });
   for (const n of G.nades) L.push({ x: n.x, y: n.y, z: n.z - 0.06, w: 0.13, h: 0.15, tex: SPR.nade });
   for (const s of G.smokes) { const a = smokeAlpha(s) * 0.9; if (a <= 0.01) continue; for (const q of s.puffs) L.push({ x: q.x, y: q.y, z: q.z, w: q.s, h: q.s, tex: SPR.smoke, mode: 1, alpha: a }); }
+  for (const f of G.fires) {
+    const fade = clamp((f.life - f.t) / 1.5, 0, 1) * clamp(f.t / 0.3, 0, 1);
+    for (const q of f.flames) { const fl = 0.75 + 0.25 * Math.sin(G.time * 11 + q.ph); const s = q.s * fl * (0.6 + 0.4 * fade); L.push({ x: q.x, y: q.y, z: 0, w: s * 0.8, h: s, tex: SPR.fire, mode: 2, alpha: 0.9 * fade }); }
+  }
   for (const f of G.fx) {
     const k = f.t / f.life;
     if (f.type === 'puff') L.push({ x: f.x, y: f.y, z: f.z - f.size / 2, w: f.size * (1 + k), h: f.size * (1 + k), tex: SPR.puff, mode: 1, alpha: 0.8 * (1 - k) });
@@ -1104,7 +1147,8 @@ function renderFrame(dt) {
   const cam = G.cam;
   if (G.state === 'menu' || G.state === 'lobby' || !G.human) {
     menuT += dt;
-    cam.x = 20 + Math.cos(menuT * 0.07) * 1.2; cam.y = 18 + Math.sin(menuT * 0.07) * 6; cam.z = STAND_EYE; cam.yaw = -Math.PI / 2 + Math.sin(menuT * 0.11) * 0.9; cam.pitch = 0.05; cam.fov = camFovFor(null);
+    if (!G.flyPt || G.flyMap !== (MAP && MAP.id)) { G.flyMap = MAP && MAP.id; G.flyPt = snapWalk((SITES.A.cx + SPAWNS.wc[0]) / 2, (SITES.A.cy + SPAWNS.wc[1]) / 2); G.flyAim = Math.atan2(SPAWNS.rc[1] - G.flyPt[1], SPAWNS.rc[0] - G.flyPt[0]); }
+    cam.x = G.flyPt[0]; cam.y = G.flyPt[1]; cam.z = STAND_EYE; cam.yaw = G.flyAim + Math.sin(menuT * 0.11) * 1.4; cam.pitch = 0.05; cam.fov = camFovFor(null);
     renderScene(cam, []);
     drawHUD(); return;
   }

@@ -51,7 +51,7 @@ function netConnect(asHost, name, team) {
 }
 function lobbySettings() {
   const v = (id) => document.getElementById(id).value;
-  return { mode: v('lob-mode'), bots: +v('lob-bots'), rounds: +v('lob-rounds'), diff: v('lob-diff') };
+  return { map: v('lob-map'), mode: v('lob-mode'), bots: +v('lob-bots'), rounds: +v('lob-rounds'), diff: v('lob-diff') };
 }
 function netOnMessage(m) {
   switch (m.t) {
@@ -96,9 +96,10 @@ function netHostStart() {
   }
   const humansR = roster.filter(r => r.team === 'R').length, humansW = roster.filter(r => r.team === 'W').length;
   const size = S.mode === 'duel' ? 1 : Math.max(humansR, humansW, S.bots);
-  Object.assign(G.settings, { size, rounds: S.rounds, diff: S.diff });
+  const mapId = S.map === 'random' ? pick(MAP_DEFS).id : S.map;
+  Object.assign(G.settings, { size, rounds: S.rounds, diff: S.diff, map: mapId });
   NET.mode = 'host'; NET.roster = roster; NET.fx = []; NET.sfx = []; NET.outbox.clear();
-  netSend({ t: 'start', roster, settings: { size, rounds: S.rounds, diff: S.diff, mode: S.mode } });
+  netSend({ t: 'start', roster, settings: { size, rounds: S.rounds, diff: S.diff, mode: S.mode, map: mapId } });
   UI.beginPlay(roster);
 }
 function netHostInput(from, d) {
@@ -164,7 +165,7 @@ function packPlayer(p) {
   return {
     id: p.id, nid: p.nid || 0, n: p.name, tm: p.team, b: p.isBot ? 1 : 0, al: p.alive ? 1 : 0, sp: p.sp || 0,
     x: r3(p.x), y: r3(p.y), z: r3(p.z), yw: r3(p.yaw), pt: r3(p.pitch), cr: r2(p.crouch), spd: r2(p.speed), wp: r2(p.walkPhase),
-    hp: p.hp, ar: p.armor, hm: p.helmet ? 1 : 0, kit: p.kit ? 1 : 0, $: p.money, cur: p.cur, ns: p.nadeSel, nd: [p.nades.he, p.nades.flash, p.nades.smoke],
+    hp: p.hp, ar: p.armor, hm: p.helmet ? 1 : 0, kit: p.kit ? 1 : 0, $: p.money, cur: p.cur, ns: p.nadeSel, nd: [p.nades.he, p.nades.flash, p.nades.smoke, p.nades.fire],
     bomb: p.hasBomb ? 1 : 0, zm: p.zoom, pl: r2(p.plantProg), df: p.defusing ? 1 : 0, fl: r2(Math.max(0, p.flash)), ff: r2(Math.max(0, p.fireFlashT)),
     pp: r3(p.punchP), py: r3(p.punchY), dt: r2(Math.max(0, p.drawT)), dm: p.drawMax, th: r2(p.throwT), sw: r2(p.vmSwing), ac: r3(p.accum),
     k: p.kills, d: p.deaths, h: p.hs, st: r2(p.spottedT), la: p.lastAttacker ? p.lastAttacker.id : -1, w: [w(1), w(2), w(3)],
@@ -185,6 +186,7 @@ function netHostTick(dt, force) {
     I: G.items.map(i => [r2(i.x), r2(i.y), i.key]),
     N: G.nades.map(n => [r2(n.x), r2(n.y), r2(n.z), n.type]),
     S: G.smokes.map(s => [r2(s.x), r2(s.y), r2(s.t), s.life, s.puffs.map(q => [r2(q.x), r2(q.y), r2(q.z), r2(q.s)])]),
+    FI: G.fires.map(f => [r2(f.x), r2(f.y), r2(f.t), f.life, f.flames.map(q => [r2(q.x), r2(q.y), r2(q.s), r2(q.ph)])]),
     F: G.feed.slice(-6), C: G.chat.slice(-6), CT: G.center, E: NET.sfx, X: NET.fx,
   };
   NET.sfx = []; NET.fx = [];
@@ -195,7 +197,8 @@ function netHostTick(dt, force) {
 function netClientStart(m) {
   NET.mode = 'client'; NET.byId.clear(); NET.ev = [];
   Object.assign(G.settings, { size: m.settings.size, rounds: m.settings.rounds, diff: m.settings.diff });
-  G.players = []; G.human = null; G.viewP = null; G.items = []; G.nades = []; G.smokes = []; G.fx = []; G.feed = []; G.chat = [];
+  if (m.settings.map && (!MAP || MAP.id !== m.settings.map)) loadMap(m.settings.map);
+  G.players = []; G.human = null; G.viewP = null; G.items = []; G.nades = []; G.smokes = []; G.fires = []; G.fx = []; G.feed = []; G.chat = [];
   G.bomb = { state: 'none', x: 0, y: 0 }; G.score = { R: 0, W: 0 }; G.round = 0; G.phase = 'freeze'; G.matchWinner = null;
   NET.lastPhase = ''; NET.lastCenter = ''; NET.wasAlive = true;
   UI.beginPlay(null);
@@ -224,7 +227,7 @@ function netApplySnap(s) {
     }
     p.sp = q.sp;
     p.hp = q.hp; p.armor = q.ar; p.helmet = !!q.hm; p.kit = !!q.kit; p.money = q.$; p.cur = q.cur; p.nadeSel = q.ns;
-    p.nades.he = q.nd[0]; p.nades.flash = q.nd[1]; p.nades.smoke = q.nd[2]; p.hasBomb = !!q.bomb; p.zoom = q.zm; p.plantProg = q.pl; p.defusing = !!q.df;
+    p.nades.he = q.nd[0]; p.nades.flash = q.nd[1]; p.nades.smoke = q.nd[2]; p.nades.fire = q.nd[3] || 0; p.hasBomb = !!q.bomb; p.zoom = q.zm; p.plantProg = q.pl; p.defusing = !!q.df;
     if (q.fl > p.flash || !own) { p.flash = q.fl; p.flashMax = Math.max(p.flashMax || 0, q.fl); }
     if (!own) p.fireFlashT = Math.max(p.fireFlashT, q.ff);
     p.punchP = q.pp; p.punchY = q.py; p.drawT = q.dt; p.drawMax = q.dm; p.throwT = q.th; p.vmSwing = q.sw; p.accum = q.ac;
@@ -243,6 +246,7 @@ function netApplySnap(s) {
   G.items = s.I.map(i => ({ x: i[0], y: i[1], key: i[2] }));
   G.nades = s.N.map(n => ({ x: n[0], y: n[1], z: n[2], type: n[3] }));
   G.smokes = s.S.map(q => ({ x: q[0], y: q[1], t: q[2], life: q[3], puffs: q[4].map(u => ({ x: u[0], y: u[1], z: u[2], s: u[3] })) }));
+  G.fires = (s.FI || []).map(q => ({ x: q[0], y: q[1], t: q[2], life: q[3], r: 1.8, flames: q[4].map(u => ({ x: u[0], y: u[1], s: u[2], ph: u[3] })) }));
   G.feed = s.F; G.chat = s.C; G.center = s.CT;
   for (const f of s.X) addFx(f[0], f[1], f[2], f[3], f[4], f[5], f[6]);
   const h = G.human;
@@ -311,6 +315,7 @@ function netClientStep(dt) {
   h.vmKick = Math.max(0, h.vmKick - dt * 9);
   if (h.flash > 0) h.flash -= dt;
   for (const s of G.smokes) s.t += dt;
+  for (const f of G.fires) f.t += dt;
   for (let i = G.fx.length - 1; i >= 0; i--) { const f = G.fx[i]; f.t += dt; if (f.vz) { f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt; } if (f.t >= f.life) G.fx.splice(i, 1); }
   if (G.bomb && G.bomb.led > 0) G.bomb.led -= dt;
   if (G.hitMarkT > 0) G.hitMarkT -= dt;
@@ -340,9 +345,10 @@ const LOBBY = {
     if (!el) return;
     const amHost = NET.id && NET.id === NET.hostId;
     document.getElementById('lob-host-opts').classList.toggle('disabled', !amHost);
-    for (const id of ['lob-mode', 'lob-bots', 'lob-rounds', 'lob-diff']) document.getElementById(id).disabled = !amHost;
+    for (const id of ['lob-map', 'lob-mode', 'lob-bots', 'lob-rounds', 'lob-diff']) document.getElementById(id).disabled = !amHost;
     document.getElementById('lob-start').classList.toggle('hidden', !amHost);
     if (L && L.settings && !amHost) {
+      if (L.settings.map) document.getElementById('lob-map').value = L.settings.map;
       document.getElementById('lob-mode').value = L.settings.mode; document.getElementById('lob-bots').value = L.settings.bots;
       document.getElementById('lob-rounds').value = L.settings.rounds; document.getElementById('lob-diff').value = L.settings.diff;
     }

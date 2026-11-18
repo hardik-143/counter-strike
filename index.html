@@ -14,8 +14,11 @@
 <div id="menu" class="overlay">
   <div class="card">
     <h1>LAST <span>FUSE</span></h1>
-    <p class="tag">Tactical bomb-defusal shooter · 5v5 with bots · map: <b>Sandline</b></p>
+    <p class="tag">Tactical bomb-defusal shooter · 5v5 with bots · 6 maps · 19 weapons</p>
     <div class="grid">
+      <label>Map
+        <select id="opt-map"></select>
+      </label>
       <label>Team
         <select id="opt-team"><option value="auto">Auto-assign</option><option value="R">Raiders (attack · plant)</option><option value="W">Wardens (defend · defuse)</option></select>
       </label>
@@ -114,11 +117,14 @@
 
 <div id="lobby" class="overlay hidden">
   <div class="card">
-    <h2>LAN LOBBY</h2>
+    <h2>LOBBY</h2>
     <p id="lob-status" class="tag"></p>
     <p id="lob-room" class="room hidden"></p>
     <div id="lob-teams" class="lob-teams"></div>
     <div id="lob-host-opts" class="grid">
+      <label>Map
+        <select id="lob-map"></select>
+      </label>
       <label>Mode
         <select id="lob-mode"><option value="team">Team match (pick a side)</option><option value="duel">1v1 duel (no bots)</option></select>
       </label>
@@ -141,6 +147,7 @@
 <div id="mobile" class="overlay hidden"><div class="card small"><h2>Desktop only</h2><p>Last Fuse needs a keyboard and mouse.</p></div></div>
 
 <script src="js/core.js"></script>
+<script src="js/maps.js"></script>
 <script src="js/sfx.js"></script>
 <script src="js/weapons.js"></script>
 <script src="js/render.js"></script>

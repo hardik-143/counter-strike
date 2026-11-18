@@ -25,6 +25,20 @@ const WEAPONS = {
     spread: { base: 0.005, move: 0.11, perShot: 0.011, max: 0.1, recover: 0.24 }, kick: 0.016, kickMax: 0.14, side: 0.008, wood: '#8a4b22' },
   mlance: { name: 'M-Lance', slot: 1, type: 'rifle', snd: 'rifle', team: 'W', price: 3100, dmg: 33, rate: 0.09, auto: true, mag: 30, reserve: 90, reload: 3.1, pen: 0.7, rangeMod: 0.97, speed: 0.9,
     spread: { base: 0.004, move: 0.1, perShot: 0.009, max: 0.085, recover: 0.24 }, kick: 0.013, kickMax: 0.12, side: 0.006, wood: '#2b2d30' },
+  viper: { name: 'Viper Machine Pistol', slot: 2, type: 'pistol', snd: 'smg', price: 550, dmg: 22, rate: 0.065, auto: true, mag: 18, reserve: 90, reload: 2.4, pen: 0.47, rangeMod: 0.78, speed: 1.0,
+    spread: { base: 0.02, move: 0.05, perShot: 0.012, max: 0.08, recover: 0.25 }, kick: 0.009, kickMax: 0.07, side: 0.007 },
+  duke: { name: 'Duke Revolver', slot: 2, type: 'pistol', snd: 'hpistol', price: 700, dmg: 86, rate: 0.5, mag: 6, reserve: 24, reload: 2.3, pen: 0.93, rangeMod: 0.86, speed: 0.98,
+    spread: { base: 0.006, move: 0.1, perShot: 0.06, max: 0.12, recover: 0.25 }, kick: 0.07, kickMax: 0.14, side: 0.01 },
+  ratchet: { name: 'Ratchet SMG', slot: 1, type: 'smg', snd: 'smg', price: 1250, dmg: 20, rate: 0.06, auto: true, mag: 32, reserve: 120, reload: 2.3, pen: 0.5, rangeMod: 0.8, speed: 0.98,
+    spread: { base: 0.014, move: 0.03, perShot: 0.006, max: 0.07, recover: 0.22 }, kick: 0.006, kickMax: 0.065, side: 0.005 },
+  auto12: { name: 'Hailstorm Auto-12', slot: 1, type: 'shotgun', snd: 'shotgun', price: 3000, dmg: 22, pellets: 6, rate: 0.25, mag: 7, reserve: 32, reload: 0.45, shell: true, pen: 0.6, rangeMod: 0.6, speed: 0.9,
+    spread: { base: 0.055, move: 0.02, perShot: 0.004, max: 0.02, recover: 0.5 }, kick: 0.04, kickMax: 0.1, side: 0.01 },
+  bulwark: { name: 'Bulwark LMG', slot: 1, type: 'lmg', snd: 'rifle', price: 5200, dmg: 32, rate: 0.085, auto: true, mag: 100, reserve: 200, reload: 5.0, pen: 0.8, rangeMod: 0.97, speed: 0.78,
+    spread: { base: 0.02, move: 0.12, perShot: 0.006, max: 0.1, recover: 0.15 }, kick: 0.009, kickMax: 0.1, side: 0.008, wood: '#3c3f36' },
+  strix: { name: 'Strix Bullpup', slot: 1, type: 'rifle', snd: 'rifle', price: 3300, dmg: 32, rate: 0.09, auto: true, mag: 30, reserve: 90, reload: 3.3, pen: 0.9, rangeMod: 0.96, speed: 0.88,
+    spread: { base: 0.004, scoped: 0.002, move: 0.1, perShot: 0.009, max: 0.085, recover: 0.24 }, kick: 0.012, kickMax: 0.11, side: 0.006, zoom: [55], wood: '#6b6f58' },
+  ridgeline: { name: 'Ridgeline DMR', slot: 1, type: 'sniper', snd: 'sniper', price: 4200, dmg: 70, rate: 0.25, mag: 20, reserve: 90, reload: 3.0, pen: 0.9, rangeMod: 0.98, speed: 0.88,
+    spread: { base: 0.035, scoped: 0.002, move: 0.11, perShot: 0.012, max: 0.05, recover: 0.3 }, kick: 0.03, kickMax: 0.1, side: 0.006, zoom: [40, 15], wood: '#2f3a44' },
   sparrow: { name: 'Sparrow Scout', slot: 1, type: 'sniper', snd: 'sniper', price: 2750, dmg: 75, rate: 1.25, mag: 10, reserve: 90, reload: 2.0, pen: 0.85, rangeMod: 0.98, speed: 1.0,
     spread: { base: 0.05, scoped: 0.0025, move: 0.1, perShot: 0, max: 0, recover: 1 }, kick: 0.03, kickMax: 0.06, side: 0.004, zoom: [40, 15], wood: '#3d4a33' },
   longshot: { name: 'Longshot .338', slot: 1, type: 'sniper', snd: 'sniper', price: 4750, dmg: 115, rate: 1.45, mag: 10, reserve: 30, reload: 2.9, pen: 0.97, rangeMod: 0.99, speed: 0.84,
@@ -36,14 +50,16 @@ const GEAR = {
   he: { name: 'HE Grenade', price: 300 },
   flash: { name: 'Flashbang', price: 200 },
   smoke: { name: 'Smoke Grenade', price: 300 },
+  fire: { name: 'Incendiary', price: 500 },
   kit: { name: 'Defuse Kit', price: 200, team: 'W' },
 };
 const BUY_MENU = [
-  { name: 'Pistols', items: ['p9', 'k45', 'hawk'] },
-  { name: 'Heavy', items: ['breacher'] },
-  { name: 'SMGs', items: ['vespa', 'kestrel'] },
-  { name: 'Rifles', items: ['hyena', 'gallant', 'avk', 'mlance', 'sparrow', 'longshot'] },
-  { name: 'Gear', items: ['vest', 'vesthelm', 'he', 'flash', 'smoke', 'kit'] },
+  { name: 'Pistols', items: ['p9', 'k45', 'viper', 'hawk', 'duke'] },
+  { name: 'Heavy', items: ['breacher', 'auto12', 'bulwark'] },
+  { name: 'SMGs', items: ['ratchet', 'vespa', 'kestrel'] },
+  { name: 'Rifles', items: ['hyena', 'gallant', 'avk', 'mlance', 'strix'] },
+  { name: 'Snipers', items: ['sparrow', 'ridgeline', 'longshot'] },
+  { name: 'Gear', items: ['vest', 'vesthelm', 'he', 'flash', 'smoke', 'fire', 'kit'] },
 ];
 
 // ============================================================
@@ -56,6 +72,7 @@ const VM_SPEC = {
   shotgun: { N: [510, 120], F: [100, -230], taper: 0.42, body: '#2b2b2b', mag: 'tube', wf: 1.55 },
   sniper: { N: [520, 130], F: [80, -250], taper: 0.4, body: '#2d3326', mag: 'box', scope: true, wf: 1.5 },
   pistol: { N: [330, 70], F: [160, -175], taper: 0.6, body: '#222', mag: 'pistol', wf: 1.45 },
+  lmg: { N: [520, 130], F: [120, -225], taper: 0.45, body: '#2b2d28', mag: 'drum', wf: 1.7 },
 };
 function vmFrame(spec) {
   const nx = spec.N[0], ny = spec.N[1], ax = spec.F[0] - nx, ay = spec.F[1] - ny, L = Math.hypot(ax, ay);
@@ -94,7 +111,7 @@ function drawViewmodel(g, SW, SH, p, opt) {
   const P = vmFrame(spec);
   const body = spec.body, light = 'rgba(255,255,255,0.12)', furn = w.wood || '#3a3a3a';
   if (w.type === 'pistol') {
-    const big = p.slots[2] && p.slots[2].key === 'hawk';
+    const big = p.slots[2] && (p.slots[2].key === 'hawk' || p.slots[2].key === 'duke');
     vmArm(g, [380, 140], P(0.12, -40), 46, sleeve, glove, cuff);
     vmArm(g, [-60, 160], P(0.18, -30), 44, sleeve, glove, cuff);
     vmQuad(g, P, 0.05, 0.3, -70, -10, '#1a1a1a');
@@ -115,8 +132,9 @@ function drawViewmodel(g, SW, SH, p, opt) {
     if (spec.mag === 'curve') vmPoly(g, P, [[0.36, -24], [0.47, -24], [0.5, -80], [0.42, -95]], '#1f1f1f');
     else if (spec.mag === 'straight') vmQuad(g, P, 0.38, 0.46, -24, -80, '#1f1f1f');
     else if (spec.mag === 'box') vmQuad(g, P, 0.3, 0.38, -24, -50, '#1f1f1f');
+    else if (spec.mag === 'drum') { const c = P(0.36, -52); g.fillStyle = '#1b1c18'; g.beginPath(); g.ellipse(c[0], c[1], 46, 40, -0.6, 0, TAU); g.fill(); g.fillStyle = 'rgba(255,255,255,0.1)'; g.beginPath(); g.ellipse(c[0] - 8, c[1] - 8, 26, 20, -0.6, 0, TAU); g.fill(); }
     // sights / scope
-    if (spec.scope) { vmQuad(g, P, 0.15, 0.55, 26, 50, '#161616'); vmQuad(g, P, 0.15, 0.55, 44, 50, light); vmQuad(g, P, 0.12, 0.17, 22, 54, '#0d0d0d'); vmQuad(g, P, 0.53, 0.58, 22, 54, '#0d0d0d'); }
+    if (spec.scope || (w.zoom && w.type !== 'sniper')) { vmQuad(g, P, 0.15, 0.55, 26, 50, '#161616'); vmQuad(g, P, 0.15, 0.55, 44, 50, light); vmQuad(g, P, 0.12, 0.17, 22, 54, '#0d0d0d'); vmQuad(g, P, 0.53, 0.58, 22, 54, '#0d0d0d'); }
     else { vmQuad(g, P, 0.12, 0.22, 22, 32, '#151515'); vmQuad(g, P, 0.92, 0.95, 6, 20, '#151515'); }
     // grip + hands
     vmArm(g, [620, 220], P(0.12, -40), 58, sleeve, glove, cuff);
@@ -150,9 +168,9 @@ function drawNadeVM(g, p, opt, sleeve, glove, cuff) {
   const x = 280 - t * 200, y = -150 - t * 200;
   const sel = p.nadeSel;
   if (t < 0.6) {
-    g.fillStyle = sel === 'he' ? '#3f4a2e' : sel === 'flash' ? '#5a6068' : '#4a4f55';
+    g.fillStyle = sel === 'he' ? '#3f4a2e' : sel === 'flash' ? '#5a6068' : sel === 'fire' ? '#7a2a1c' : '#4a4f55';
     if (sel === 'he') { g.beginPath(); g.ellipse(x, y, 34, 40, 0, 0, TAU); g.fill(); }
-    else { g.fillRect(x - 26, y - 48, 52, 92); g.fillStyle = sel === 'flash' ? '#c9c9c9' : '#7a8a7a'; g.fillRect(x - 26, y - 20, 52, 14); }
+    else { g.fillRect(x - 26, y - 48, 52, 92); g.fillStyle = sel === 'flash' ? '#c9c9c9' : sel === 'fire' ? '#e8a030' : '#7a8a7a'; g.fillRect(x - 26, y - 20, 52, 14); }
     g.fillStyle = '#999'; g.fillRect(x - 10, y - 62, 20, 16); g.fillStyle = '#777'; g.fillRect(x + 8, y - 60, 30, 8);
   }
   vmArm(g, [520, 200], [x + 10, y + 20], 50, sleeve, glove, cuff);

@@ -9,24 +9,60 @@ const DIFF = {
   hard: { react: 0.3, err: 0.024, turn: 11.0, head: 0.38, crouch: 0.4, burstFar: 5, comp: 0.75, fov: 1.2 },
   expert: { react: 0.19, err: 0.013, turn: 15.0, head: 0.55, crouch: 0.45, burstFar: 6, comp: 0.9, fov: 1.3 },
 };
-// waypoint routes (cell coords; snapped to walkable at load)
-const ROUTES = {
-  A: [{ name: 'long', pts: [[37, 25], [37, 14]] }, { name: 'short', pts: [[20, 22], [20, 13], [30, 12]] }],
-  B: [{ name: 'tunnels', pts: [[4, 27], [4, 15]] }, { name: 'door', pts: [[20, 24], [19, 16], [8, 16], [4, 14]] }],
-};
-const POSTS = {
-  A: { spots: [[33, 4], [31, 8], [36, 5], [34, 2], [29, 6]], look: [[36.5, 11], [30.5, 11], [31, 12]] },
-  B: { spots: [[6, 7], [9, 4], [4, 8], [8, 2], [2, 6]], look: [[3.5, 11], [4, 12]] },
-  mid: { spots: [[19, 8], [21, 8]], look: [[19.5, 20], [20.5, 22]] },
-};
-const ENTRY_LOOK = { A: [[26.5, 3.5], [30.5, 10.5], [36.5, 10.5]], B: [[13, 3.5], [3.5, 10.5]] };
-(function snapRoutes() {
-  for (const k in ROUTES) for (const r of ROUTES[k]) r.pts = r.pts.map(p => snapWalk(p[0], p[1]));
-  for (const k in POSTS) POSTS[k].spots = POSTS[k].spots.map(p => snapWalk(p[0], p[1]));
-})();
+// Routes, defender posts and entry points are per-map. Hand-tuned when the map
+// provides them, otherwise derived from the layout with A* (see aiPrepareMap).
+let ROUTES = { A: [], B: [] }, POSTS = {}, ENTRY_LOOK = { A: [], B: [] };
+let AS = { g: null, f: null, from: null, stamp: null, closed: null, pen: null, run: 0 };
+function aiPrepareMap() {
+  const N = MW * MH;
+  AS = { g: new Float32Array(N), f: new Float32Array(N), from: new Int32Array(N), stamp: new Int32Array(N), closed: new Int32Array(N), pen: new Float32Array(N), run: 0 };
+  const def = MAP, snap = (p) => snapWalk(p[0], p[1]);
+  ROUTES = { A: [], B: [] }; POSTS = {}; ENTRY_LOOK = { A: [], B: [] };
+  for (const k of ['A', 'B']) {
+    const tgt = [SITES[k].cx, SITES[k].cy];
+    if (def.routes) ROUTES[k] = def.routes[k].map((pts, i) => ({ name: k + i, pts: pts.map(snap) }));
+    const entries = [];
+    const entryOf = (path) => { if (!path) return null; for (let i = 0; i < path.length; i++) if (siteAt(path[i][0], path[i][1]) === k) return path[Math.max(0, i - 1)]; return null; };
+    const sample = (path, fr) => fr.map(f => path[Math.min(path.length - 1, Math.floor(path.length * f))]);
+    const p0 = astar(SPAWNS.rc[0], SPAWNS.rc[1], tgt[0], tgt[1]);
+    let p1 = null;
+    if (p0) {
+      AS.pen.fill(0);
+      for (let i = Math.floor(p0.length * 0.2); i < Math.floor(p0.length * 0.92); i++) {
+        const cx = Math.floor(p0[i][0]), cy = Math.floor(p0[i][1]);
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const x = cx + dx, y = cy + dy; if (x >= 0 && y >= 0 && x < MW && y < MH) AS.pen[y * MW + x] = 8; }
+      }
+      p1 = astar(SPAWNS.rc[0], SPAWNS.rc[1], tgt[0], tgt[1]);
+      AS.pen.fill(0);
+      if (!def.routes) {
+        ROUTES[k].push({ name: k + 'main', pts: sample(p0, [0.4, 0.75]) });
+        if (p1 && p1.length < p0.length * 1.9) ROUTES[k].push({ name: k + 'alt', pts: sample(p1, [0.4, 0.75]) });
+      }
+      entries.push(entryOf(p0)); if (p1) entries.push(entryOf(p1));
+    }
+    const pc = astar(SPAWNS.wc[0], SPAWNS.wc[1], tgt[0], tgt[1]);
+    entries.push(entryOf(pc));
+    const ent = entries.filter(Boolean).filter((e, i, l) => l.findIndex(o => Math.hypot(o[0] - e[0], o[1] - e[1]) < 2) === i);
+    ENTRY_LOOK[k] = def.entry ? def.entry[k] : ent.map(e => [e[0], e[1]]);
+    if (!ROUTES[k].length) ROUTES[k].push({ name: k + 'direct', pts: [] });
+    if (def.posts && def.posts[k]) POSTS[k] = { spots: def.posts[k].spots.map(snap), look: def.posts[k].look };
+    else {
+      // defender spots: inside the site, near cover, a few cells back from where attackers arrive
+      const scored = SITES[k].cells.map(([x, y]) => {
+        let cover = 0; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) if (solidCell(x + dx, y + dy)) cover++;
+        const dEnt = ent.length ? Math.min(...ent.map(e => Math.hypot(e[0] - x - 0.5, e[1] - y - 0.5))) : 6;
+        const sc = (dEnt > 2.5 && dEnt < 9 ? 4 : 0) + Math.min(cover, 3) + Math.random() * 2;
+        return { p: [x + 0.5, y + 0.5], sc };
+      }).filter(o => !solidAt(o.p[0], o.p[1])).sort((a, b) => b.sc - a.sc);
+      const spots = [];
+      for (const o of scored) { if (spots.length >= 5) break; if (spots.every(q => Math.hypot(q[0] - o.p[0], q[1] - o.p[1]) > 2)) spots.push(o.p); }
+      POSTS[k] = { spots: spots.length ? spots : [tgt], look: ENTRY_LOOK[k].length ? ENTRY_LOOK[k] : [tgt] };
+    }
+  }
+  if (def.posts && def.posts.mid) POSTS.mid = { spots: def.posts.mid.spots.map(snap), look: def.posts.mid.look };
+}
 
 // ---------------- A* on the grid ----------------
-const AS = { g: new Float32Array(MW * MH), f: new Float32Array(MW * MH), from: new Int32Array(MW * MH), stamp: new Int32Array(MW * MH), closed: new Int32Array(MW * MH), run: 0 };
 function walkableCell(x, y) { return x >= 0 && y >= 0 && x < MW && y < MH && mapWall[y * MW + x] === 0; }
 function astar(sx, sy, tx, ty) {
   sx = Math.floor(sx); sy = Math.floor(sy); tx = Math.floor(tx); ty = Math.floor(ty);
@@ -53,7 +89,7 @@ function astar(sx, sy, tx, ty) {
       if (AS.closed[ni] === run) continue;
       // wall-hugging penalty keeps bots off corners
       let pen = 0; for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!walkableCell(nx + ox, ny + oy)) pen += 0.18;
-      const ng = AS.g[cur] + (dx && dy ? 1.414 : 1) + pen;
+      const ng = AS.g[cur] + (dx && dy ? 1.414 : 1) + pen + AS.pen[ni];
       if (AS.stamp[ni] !== run || ng < AS.g[ni]) {
         AS.stamp[ni] = run; AS.g[ni] = ng; AS.from[ni] = cur; AS.f[ni] = ng + Math.hypot(tx - nx, ty - ny); push(ni);
       }
@@ -85,8 +121,9 @@ function aiRoundStart(b) {
     a.wps = route.pts.slice(); a.wps.push(sitePoint(a.site, b.hasBomb));
     a.mode = 'route';
   } else {
-    if (!G.ctPlan || G.ctPlan.round !== G.round) G.ctPlan = { round: G.round, n: 0, order: shuffle(['A', 'B', 'A', 'B', 'mid']) };
-    const role = G.ctPlan.order[G.ctPlan.n++ % G.ctPlan.order.length];
+    if (!G.ctPlan || G.ctPlan.round !== G.round) G.ctPlan = { round: G.round, n: 0, order: shuffle(['A', 'B', 'A', 'B', POSTS.mid ? 'mid' : pick(['A', 'B'])]) };
+    let role = G.ctPlan.order[G.ctPlan.n++ % G.ctPlan.order.length];
+    if (!POSTS[role]) role = pick(['A', 'B']);
     a.role = role; a.site = role === 'mid' ? 'A' : role;
     a.post = pick(POSTS[role].spots);
     a.wps = [a.post]; a.mode = 'route';
@@ -114,18 +151,22 @@ function botBuy(b) {
   const rifle = b.team === 'R' ? 'avk' : 'mlance', cheap = b.team === 'R' ? 'hyena' : 'gallant';
   const pistolRound = G.round === 1;
   if (!b.slots[1]) {
-    if (m() >= 4750 + 1000 && Math.random() < 0.2) tryBuy(b, 'longshot', true);
+    if (m() >= 4750 + 1000 && Math.random() < 0.18) tryBuy(b, 'longshot', true);
+    else if (m() >= 5200 + 1000 && Math.random() < 0.08) tryBuy(b, 'bulwark', true);
+    else if (m() >= 4200 + 1000 && Math.random() < 0.1) tryBuy(b, 'ridgeline', true);
+    else if (m() >= 3300 + 1000 && Math.random() < 0.2) tryBuy(b, 'strix', true);
     else if (m() >= WEAPONS[rifle].price + 1000) tryBuy(b, rifle, true);
     else if (m() >= WEAPONS[cheap].price + 650 && Math.random() < 0.8) tryBuy(b, cheap, true);
-    else if (!pistolRound && m() >= 2300 && Math.random() < 0.5) tryBuy(b, pick(['vespa', 'breacher', 'vespa', 'kestrel']), true);
+    else if (!pistolRound && m() >= 2300 && Math.random() < 0.5) tryBuy(b, pick(['vespa', 'breacher', 'ratchet', 'kestrel', 'ratchet']), true);
   }
   if (m() >= 1000 && !(b.armor >= 100 && b.helmet)) tryBuy(b, 'vesthelm', true);
   else if (m() >= 650 && b.armor < 100) tryBuy(b, 'vest', true);
-  if (!b.slots[1] && m() >= 650 && Math.random() < 0.5) tryBuy(b, 'hawk', true);
+  if (!b.slots[1] && m() >= 700 && Math.random() < 0.5) tryBuy(b, pick(['hawk', 'duke', 'viper']), true);
   if (b.team === 'W' && m() >= 400 && Math.random() < 0.6) tryBuy(b, 'kit', true);
   if (m() >= 600 && Math.random() < 0.6) tryBuy(b, 'he', true);
   if (m() >= 500 && Math.random() < 0.5) tryBuy(b, 'flash', true);
   if (m() >= 700 && Math.random() < 0.45) tryBuy(b, 'smoke', true);
+  if (m() >= 900 && Math.random() < 0.35) tryBuy(b, 'fire', true);
   if (b.slots[1]) switchSlot(b, 1);
 }
 
@@ -260,6 +301,8 @@ function aiUpdate(b, dt) {
   if (b.cur === 2 && b.slots[1] && b.slots[1].mag === 0 && b.slots[1].reloadT <= 0 && b.slots[1].reserve > 0 && !ai.visible) switchSlot(b, 1);
 
   const tgt = ai.target;
+  const burning = fireAt(b.x, b.y);
+  if (burning && !I.use) { const a = Math.atan2(b.y - burning.y, b.x - burning.x); steer(b, b.x + Math.cos(a) * 2, b.y + Math.sin(a) * 2, 1); }
   if (b.flash > 0.6) {
     // blinded: back off and spray if recently saw someone
     if (ai.lastKnown) { const a = Math.atan2(b.y - ai.lastKnown.y, b.x - ai.lastKnown.x); steer(b, b.x + Math.cos(a), b.y + Math.sin(a), 0.6); }
@@ -374,7 +417,7 @@ function aiUpdate(b, dt) {
           if (!ai.holdLook || G.time > ai.scanT) { ai.holdLook = pick(P.look); ai.scanT = G.time + rand(2.5, 6); }
           look = ai.holdLook;
           // late-round push if no contact
-          if (G.liveT > 55 && G.roundT > 20 && Math.random() < dt * 0.02) { ai.wps = [pick(ROUTES[ai.site][0].pts)]; ai.wi = 0; ai.goalDirty = true; }
+          if (G.liveT > 55 && G.roundT > 20 && Math.random() < dt * 0.02) { ai.wps = [ROUTES[ai.site][0].pts.length ? pick(ROUTES[ai.site][0].pts) : [SITES[ai.site].cx, SITES[ai.site].cy]]; ai.wi = 0; ai.goalDirty = true; }
         }
       }
     }
@@ -417,7 +460,7 @@ function nearestTo(x, y, team, botsOnly) {
   return best;
 }
 function aiThrow(b, tx, ty) {
-  const type = b.nades.flash ? 'flash' : b.nades.smoke ? 'smoke' : b.nades.he ? 'he' : null;
+  const type = b.nades.flash ? 'flash' : b.nades.smoke ? 'smoke' : b.nades.fire ? 'fire' : b.nades.he ? 'he' : null;
   if (!type) return;
   const dist = Math.hypot(tx - b.x, ty - b.y);
   b.cur = 0; switchSlot(b, 4); b.nadeSel = type; b.drawT = 0;

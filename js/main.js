@@ -5,11 +5,16 @@
 (function main() {
   const $ = (id) => document.getElementById(id);
   const RES = { low: 200, fast: 270, high: 360 };
-  buildTextures(); buildSprites();
+  buildSprites();
   rendererInit($('world'));
   HUD.canvas = $('hud'); HUD.ctx = HUD.canvas.getContext('2d');
   const resize = () => { rendererResize(RES[G.settings.quality] || 270); hudResize(); };
   resize(); window.addEventListener('resize', resize);
+  // map pickers
+  const mapOpts = MAP_DEFS.map(m => `<option value="${m.id}">${m.name} — ${m.blurb}</option>`).join('') + '<option value="random">Random map</option>';
+  $('opt-map').innerHTML = mapOpts; $('lob-map').innerHTML = mapOpts;
+  const previewMap = (id) => { if (id !== 'random' && (!MAP || MAP.id !== id)) loadMap(id); };
+  previewMap(MAP_DEFS.some(m => m.id === G.settings.map) ? G.settings.map : 'sandline');
 
   // ---------- settings form ----------
   const S = G.settings;
@@ -21,6 +26,7 @@
     if (out) $(out).textContent = fmt(S[key]);
   };
   const onSetting = (k) => { if (k === 'vol') SFX.setVolume(S.vol); if (k === 'voice') SFX.setVoice(S.voice); if (k === 'quality') resize(); };
+  bind('opt-map', 'map', String); $('opt-map').addEventListener('change', () => previewMap($('opt-map').value));
   bind('opt-team', 'team', String); bind('opt-diff', 'diff', String); bind('opt-size', 'size', Number); bind('opt-rounds', 'rounds', Number);
   bind('opt-sens', 'sens', Number, 'out-sens', v => v.toFixed(2)); bind('opt-vol', 'vol', Number, 'out-vol', v => Math.round(v * 100) + '%');
   bind('opt-fov', 'fov', Number, 'out-fov', v => v + '°'); bind('opt-quality', 'quality', String);
@@ -83,6 +89,7 @@
   });
   const qRoom = new URLSearchParams(location.search).get('room');
   if (qRoom) { $('room-code').value = qRoom.toUpperCase().slice(0, 5); $('lan-msg').textContent = 'You were invited to room ' + $('room-code').value + ' — enter a name and press JOIN ROOM.'; }
+  $('lob-map').value = $('opt-map').value;
   $('btn-online-host').onclick = () => { SFX.init(); $('lan-msg').textContent = ''; NET.lobby = null; LOBBY.show(); onlineHost(lanName(), $('lan-team').value); };
   $('btn-online-join').onclick = () => {
     const code = $('room-code').value.trim().toUpperCase();
@@ -94,7 +101,7 @@
   $('btn-join').onclick = () => { SFX.init(); $('lan-msg').textContent = ''; NET.lobby = null; LOBBY.show(); netConnect(false, lanName(), $('lan-team').value); };
   $('lob-leave').onclick = toMenu;
   $('lob-start').onclick = () => { LOBBY.note(''); netHostStart(); };
-  for (const id of ['lob-mode', 'lob-bots', 'lob-rounds', 'lob-diff']) $(id).addEventListener('change', () => { if (NET.id && NET.id === NET.hostId) netSend({ t: 'settings', settings: lobbySettings() }); LOBBY.render(); });
+  for (const id of ['lob-map', 'lob-mode', 'lob-bots', 'lob-rounds', 'lob-diff']) $(id).addEventListener('change', () => { if (NET.id && NET.id === NET.hostId) netSend({ t: 'settings', settings: lobbySettings() }); LOBBY.render(); });
 
   // ---------- input events ----------
   document.addEventListener('keydown', (e) => {
