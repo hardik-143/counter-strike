@@ -35,7 +35,7 @@
         <div class="map-cards" id="map-cards"></div>
         <div class="setup">
           <div class="map-detail" id="map-detail">
-            <div class="md-shot"><img id="md-img" alt=""><canvas id="md-radar" width="168" height="140"></canvas></div>
+            <button class="md-shot" id="md-open" title="View larger"><img id="md-img" alt=""><canvas id="md-radar" width="168" height="140"></canvas><span class="md-zoom">⤢ View larger</span></button>
             <div class="md-info"><h3 id="md-name"></h3><p id="md-blurb"></p><div class="md-stats" id="md-stats"></div></div>
           </div>
           <div class="field">
@@ -110,6 +110,7 @@
         <label class="set">Mouse sensitivity <output id="out-sens"></output><input id="opt-sens" type="range" min="0.2" max="3" step="0.05"></label>
         <label class="set">Field of view <output id="out-fov"></output><input id="opt-fov" type="range" min="75" max="105" step="1"></label>
         <label class="set">Volume <output id="out-vol"></output><input id="opt-vol" type="range" min="0" max="1" step="0.05"></label>
+        <label class="set">Interface scale <output id="out-ui"></output><input id="opt-ui" type="range" min="70" max="160" step="5"><small>Menus and in-game HUD. Ctrl/Cmd + and − also work.</small></label>
         <div class="set"><span>Render resolution</span>
           <div class="seg" data-seg="quality"><button data-v="low">Retro</button><button data-v="fast">Balanced</button><button data-v="high">Sharp</button></div>
         </div>
@@ -201,6 +202,30 @@
     <p class="fine warn" id="lob-note"></p>
     <button id="lob-start" class="primary">Start</button>
     <button id="lob-leave">Leave lobby</button>
+  </div>
+</div>
+
+<div id="mapview" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="mv-name">
+  <div class="mv">
+    <header class="mv-head">
+      <div><h2 id="mv-name"></h2><p id="mv-blurb"></p></div>
+      <div class="mv-actions"><button id="mv-pick" class="deploy small"><span>PLAY THIS MAP</span></button><button id="mv-close" class="ghost" aria-label="Close">✕</button></div>
+    </header>
+    <div class="mv-body">
+      <div class="mv-shots">
+        <div class="mv-main"><img id="mv-img" alt=""><span id="mv-cap"></span></div>
+        <div class="mv-thumbs" id="mv-thumbs"></div>
+      </div>
+      <div class="mv-map">
+        <canvas id="mv-canvas"></canvas>
+        <div class="mv-tools"><button data-z="in" aria-label="Zoom in">+</button><button data-z="out" aria-label="Zoom out">−</button><button data-z="reset">Fit</button></div>
+        <div class="mv-legend">
+          <span><i style="background:#b0503c"></i>Bomb site</span><span><i style="background:#b9823c"></i>Raider spawn</span><span><i style="background:#4473b4"></i>Warden spawn</span>
+          <span><i style="background:#6a604f"></i>Open ground</span><span><i style="background:#4a443b"></i>Indoors</span><span><i style="background:#7a5a34"></i>Low cover</span><span><i style="background:#2a2e35"></i>Tall cover</span>
+        </div>
+        <small class="mv-hint">Scroll to zoom · drag to pan</small>
+      </div>
+    </div>
   </div>
 </div>
 

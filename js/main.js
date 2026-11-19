@@ -25,9 +25,13 @@
     el.addEventListener('input', upd); el.addEventListener('change', upd);
     if (out) $(out).textContent = fmt(S[key]);
   };
-  const onSetting = (k) => { if (k === 'vol') SFX.setVolume(S.vol); if (k === 'voice') SFX.setVoice(S.voice); if (k === 'quality') resize(); };
+  const onSetting = (k) => { if (k === 'ui') applyUi();
+    if (k === 'vol') SFX.setVolume(S.vol); if (k === 'voice') SFX.setVoice(S.voice); if (k === 'quality') resize(); };
   bind('opt-sens', 'sens', Number, 'out-sens', v => v.toFixed(2)); bind('opt-vol', 'vol', Number, 'out-vol', v => Math.round(v * 100) + '%');
   bind('opt-fov', 'fov', Number, 'out-fov', v => v + '°');
+  bind('opt-ui', 'ui', Number, 'out-ui', v => v + '%');
+  const applyUi = () => { document.documentElement.style.setProperty('--ui', String((G.settings.ui || 100) / 100)); hudResize(); };
+  applyUi();
   bind('opt-voice', 'voice', Boolean); bind('opt-fs', 'fullscreen', Boolean);
   SFX.setVolume(S.vol); SFX.setVoice(S.voice);
   MENU.init({ onSetting, previewMap });

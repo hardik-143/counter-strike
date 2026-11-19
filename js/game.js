@@ -6,7 +6,7 @@ const CFG = { FREEZE: 4, BUY_TIME: 25, ROUND_TIME: 115, BOMB_TIME: 35, PLANT_TIM
 const TEAM_NAME = { R: 'Raiders', W: 'Wardens' };
 const TEAM_HEX = { R: '#e0a050', W: '#7fb6ff' };
 const BOT_NAMES = ['Hollis', 'Ramos', 'Okafor', 'Brandt', 'Kovac', 'Lindqvist', 'Sato', 'Moreau', 'Haddad', 'Petrov', 'Quinn', 'Duarte', 'Novak', 'Reyes', 'Vance', 'Achebe', 'Ibsen', 'Marsh', 'Toro', 'Wexley'];
-const DEFAULT_SETTINGS = { map: 'sandline', team: 'auto', diff: 'normal', size: 5, rounds: 8, sens: 1.0, vol: 0.6, quality: 'fast', voice: true, fullscreen: true, fov: 90, name: 'You' };
+const DEFAULT_SETTINGS = { ui: 100, map: 'sandline', team: 'auto', diff: 'normal', size: 5, rounds: 8, sens: 1.0, vol: 0.6, quality: 'fast', voice: true, fullscreen: true, fov: 90, name: 'You' };
 
 function loadSettings() { try { return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem('lastfuse.settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULT_SETTINGS); } }
 function saveSettings() { try { localStorage.setItem('lastfuse.settings', JSON.stringify(G.settings)); } catch (e) { } }
@@ -65,7 +65,7 @@ function switchSlot(p, slot) {
 function maxSpeed(p) {
   let s = RUN_SPEED;
   const d = curWeaponDef(p); if (d) s *= d.speed;
-  if (p.zoom > 0) s *= 0.65;
+  if (p.zoom > 0) s *= (d && d.ads) ? 0.8 : 0.65;
   if (p.crouch > 0.5) s *= 0.34; else if (p.in.walk) s *= 0.52;
   if (p.plantProg > 0 || p.defusing) s = 0;
   return s;
@@ -133,7 +133,9 @@ function computeSpread(p, d) {
   let sp = base + S.move * Math.max(0, (mv - 0.2) / 0.8);
   if (p.z > 0.02) sp += 0.15;
   if (p.crouch > 0.5 && d.type !== 'shotgun') sp *= 0.75;
-  return sp + p.accum;
+  sp += p.accum;
+  if (p.zoom > 0 && d.ads) sp *= 0.72;
+  return sp;
 }
 function startReload(p) {
   const w = curW(p); if (!w || !w.def.mag) return;
@@ -164,13 +166,15 @@ function weaponUpdate(p, dt) {
       }
     }
   }
-  if (p.rezoomT && G.time >= p.rezoomT) { if (p.cur === 1 && w && w.def.zoom && w.reloadT <= 0) p.zoom = p.rezoom; p.rezoomT = 0; }
+  if (p.rezoomT && G.time >= p.rezoomT) { if (p.cur === 1 && w && w.def.scope && w.reloadT <= 0) p.zoom = p.rezoom; p.rezoomT = 0; }
+  // hold-to-aim zoom for non-scoped guns
+  if (d && d.ads) p.zoom = (I.alt && w.reloadT <= 0 && p.drawT <= 0) ? 1 : 0;
   if (I.reload) { I.reload = false; startReload(p); }
   if (I.drop) { I.drop = false; dropCurrent(p); }
   if (G.phase === 'freeze') { I.fireP = false; I.altP = false; return; }
   if (I.altP) {
     I.altP = false;
-    if (d && d.zoom && w.reloadT <= 0) { p.zoom = (p.zoom + 1) % (d.zoom.length + 1); p.rezoomT = 0; ownSnd(p, 'click'); }
+    if (d && d.scope && w.reloadT <= 0) { p.zoom = (p.zoom + 1) % (d.zoom.length + 1); p.rezoomT = 0; ownSnd(p, 'click'); }
     else if (d && d.type === 'knife' && G.time >= p.nextFire && p.drawT <= 0) knifeAttack(p, true);
   }
   if (p.cur === 5) { I.fireP = false; return; }
@@ -757,7 +761,11 @@ function humanInput(p, dt) {
 function camFovFor(p) {
   const aspect = RND.W / RND.H || 16 / 9;
   let f43 = G.settings.fov;
-  if (p && p.zoom > 0) { const d = curWeaponDef(p); if (d && d.zoom) f43 = d.zoom[p.zoom - 1]; }
+  if (p) {
+    const d = curWeaponDef(p);
+    if (d && d.ads) f43 = lerp(f43, d.zoom[0], p.adsT || 0);
+    else if (d && d.scope && p.zoom > 0) f43 = (p.zfLvl === p.zoom && p.zfKey === d.key) ? p.zf : d.zoom[p.zoom - 1];
+  }
   return 2 * Math.atan(Math.tan(f43 * Math.PI / 360) * aspect / (4 / 3));
 }
 function openBuy() {
@@ -838,6 +846,12 @@ function slotAvailable(p, s) { return s === 3 || (s === 1 && p.slots[1]) || (s =
 function onWheel(e) {
   if (G.state !== 'play' || G.paused || G.buyOpen) return;
   const h = G.human; if (!h.alive) { cycleSpectator(e.deltaY > 0 ? 1 : -1); return; }
+  const d = curWeaponDef(h);
+  if (d && d.scope && h.zoom > 0) {
+    if (h.zfLvl !== h.zoom || h.zfKey !== d.key) { h.zf = d.zoom[h.zoom - 1]; h.zfLvl = h.zoom; h.zfKey = d.key; }
+    h.zf = clamp(h.zf * (e.deltaY > 0 ? 1.12 : 1 / 1.12), Math.min(...d.zoom) * 0.6, 70);
+    return;
+  }
   const dir = e.deltaY > 0 ? 1 : -1;
   let s = h.cur;
   for (let i = 0; i < 5; i++) { s = ((s - 1 + dir + 5) % 5) + 1; if (slotAvailable(h, s)) { h.in.slot = s; break; } }
@@ -847,9 +861,10 @@ function onWheel(e) {
 const HUD = { canvas: null, ctx: null, W: 0, H: 0, dpr: 1, radar: null, rs: 4.4 };
 function hudResize() {
   HUD.dpr = Math.min(2, window.devicePixelRatio || 1);
-  HUD.W = window.innerWidth; HUD.H = window.innerHeight;
-  HUD.canvas.width = HUD.W * HUD.dpr; HUD.canvas.height = HUD.H * HUD.dpr;
-  HUD.ctx.setTransform(HUD.dpr, 0, 0, HUD.dpr, 0, 0);
+  HUD.ui = clamp((G.settings.ui || 100) / 100, 0.6, 2);
+  HUD.W = window.innerWidth / HUD.ui; HUD.H = window.innerHeight / HUD.ui;
+  HUD.canvas.width = window.innerWidth * HUD.dpr; HUD.canvas.height = window.innerHeight * HUD.dpr;
+  HUD.ctx.setTransform(HUD.dpr * HUD.ui, 0, 0, HUD.dpr * HUD.ui, 0, 0);
   HUD.rs = clamp(Math.min(HUD.W, HUD.H) / 200, 3, 5.5);
   buildRadar();
 }
@@ -873,7 +888,8 @@ function drawHUD() {
   g.clearRect(0, 0, SW, SH);
   if (G.state === 'menu' || G.state === 'lobby' || !G.human) return;
   const vp = G.viewP, h = G.human;
-  const scoped = vp && vp.alive && vp.zoom > 0;
+  const vpd = vp && vp.alive ? curWeaponDef(vp) : null;
+  const scoped = !!(vpd && vpd.scope && vp.zoom > 0);
   // ---- viewmodel
   if (vp && vp.alive && !scoped) {
     const bobA = clamp(vp.speed / RUN_SPEED, 0, 1);
@@ -883,7 +899,8 @@ function drawHUD() {
     if (w && w.reloadT > 0 && !w.def.shell) lower += Math.sin(clamp(1 - w.reloadT / w.def.reload, 0, 1) * Math.PI) * 0.22;
     if (w && w.reloadT > 0 && w.def.shell) lower += 0.06;
     if (vp.plantProg > 0) lower -= 0.05;
-    drawViewmodel(g, SW, SH, vp, { bobX: Math.cos(ph) * 10 * bobA, bobY: Math.abs(Math.sin(ph)) * 12 * bobA + vp.crouch * 8, lower, kick: vp.vmKick, flash: vp.fireFlashT > 0 ? 1 : 0, swing: vp.vmSwing > 0 ? 1 - vp.vmSwing : 0, throwT: vp.throwT > 0 ? vp.throwT / 0.5 : 0, planting: vp.plantProg > 0 });
+    const ads = vp.adsT || 0;
+    drawViewmodel(g, SW, SH, vp, { ads, bobX: Math.cos(ph) * 10 * bobA * (1 - 0.7 * ads), bobY: Math.abs(Math.sin(ph)) * 12 * bobA * (1 - 0.7 * ads) + vp.crouch * 8, lower, kick: vp.vmKick, flash: vp.fireFlashT > 0 ? 1 : 0, swing: vp.vmSwing > 0 ? 1 - vp.vmSwing : 0, throwT: vp.throwT > 0 ? vp.throwT / 0.5 : 0, planting: vp.plantProg > 0 });
   }
   // ---- scope
   if (scoped) {
@@ -891,6 +908,9 @@ function drawHUD() {
     g.fillStyle = '#000'; g.beginPath(); g.rect(0, 0, SW, SH); g.arc(cx, cy, r, 0, TAU, true); g.fill();
     g.strokeStyle = '#000'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx - r, cy); g.lineTo(cx + r, cy); g.moveTo(cx, cy - r); g.lineTo(cx, cy + r); g.stroke();
     const blur = clamp(vp.speed / 1.2, 0, 1); if (blur > 0.1) { g.fillStyle = `rgba(0,0,0,${blur * 0.35})`; g.beginPath(); g.arc(cx, cy, r, 0, TAU); g.fill(); }
+    const mag = Math.tan(camFovFor(null) / 2) / Math.tan(G.cam.fov / 2);
+    g.textAlign = 'center'; g.font = 'bold 15px Inter, sans-serif'; g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.fillText(mag.toFixed(1) + '×', cx, cy + r * 0.62); g.font = '11px Inter, sans-serif'; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText('mouse wheel: zoom · RMB: next level', cx, cy + r * 0.62 + 18);
   }
   // ---- smoke inside overlay
   for (const s of G.smokes) { const d = Math.hypot(G.cam.x - s.x, G.cam.y - s.y); if (d < 1.9) { g.fillStyle = `rgba(190,190,186,${smokeAlpha(s) * clamp((1.9 - d) / 0.8, 0, 1) * 0.92})`; g.fillRect(0, 0, SW, SH); } }
@@ -898,7 +918,9 @@ function drawHUD() {
   if (vp && vp.alive) {
     const d = curWeaponDef(vp);
     const showCH = vp.cur >= 3 || (d && d.type !== 'sniper') || scoped;
-    if (showCH && !scoped) {
+    if (showCH && !scoped && (vp.adsT || 0) > 0.6) {
+      g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(SW / 2 - 2.5, SH / 2 - 2.5, 5, 5); g.fillStyle = '#5ef06a'; g.fillRect(SW / 2 - 1.5, SH / 2 - 1.5, 3, 3);
+    } else if (showCH && !scoped) {
       let sp = d && d.spread ? computeSpread(vp, d) : 0.01;
       const gap = 3 + sp * (SH / 2) / Math.tan(G.cam.fov / 2 * RND.H / RND.W) * 1.2;
       const len = 7, cx = SW / 2, cy = SH / 2;
@@ -1154,6 +1176,8 @@ function renderFrame(dt) {
   }
   const vp = G.viewP;
   if (vp) {
+    const vd = curWeaponDef(vp), tgt = (vp.alive && vp.zoom > 0 && vd && vd.ads) ? 1 : 0;
+    vp.adsT = (vp.adsT || 0) + (tgt - (vp.adsT || 0)) * Math.min(1, dt * 14);
     cam.x = vp.x; cam.y = vp.y; cam.z = eyeZ(vp); cam.yaw = vp.yaw + vp.punchY; cam.pitch = vp.pitch + vp.punchP; cam.fov = camFovFor(vp);
   } else { const h = G.human; cam.x = h.x; cam.y = h.y; cam.z = 0.25; cam.yaw = h.yaw; cam.pitch = 0.2; cam.fov = camFovFor(null); }
   if (G.shakeT > 0) { cam.yaw += rand(-1, 1) * 0.015 * G.shakeT; cam.pitch += rand(-1, 1) * 0.015 * G.shakeT; }

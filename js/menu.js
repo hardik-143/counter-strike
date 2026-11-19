@@ -80,7 +80,7 @@ const MENU = (() => {
   function renderMapCards() {
     const el = $('map-cards');
     el.innerHTML = MAP_DEFS.map(d => cardHTML(d)).join('') + cardHTML('random');
-    el.querySelectorAll('.map-card').forEach(b => b.onclick = () => pickMap(b.dataset.id));
+    el.querySelectorAll('.map-card').forEach(b => { b.onclick = () => pickMap(b.dataset.id); b.ondblclick = () => { if (b.dataset.id !== 'random') openViewer(b.dataset.id); }; });
     markMap();
   }
   function pickMap(id) {
@@ -115,6 +115,103 @@ const MENU = (() => {
       b.disabled = !amHost;
       b.onclick = () => { if (!amHost) return; $('lob-map').value = b.dataset.id; $('lob-map').dispatchEvent(new Event('change')); };
     });
+  }
+
+
+  // ---------------- full-size map viewer ----------------
+  const views = {};   // map id -> [{label, src}]
+  function camAt(pos, look) { const p = snapWalk(pos[0], pos[1]); return { x: p[0], y: p[1], z: STAND_EYE, yaw: Math.atan2(look[1] - p[1], look[0] - p[0]), pitch: 0.03, fov: 1.6 }; }
+  function siteCam(k) {
+    const site = SITES[k], ent = (ENTRY_LOOK[k] && ENTRY_LOOK[k][0]) || SPAWNS.wc;
+    let dx = ent[0] - site.cx, dy = ent[1] - site.cy; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    let pos = snapWalk(ent[0] + dx * 1.6, ent[1] + dy * 1.6);
+    if (!walkLine(pos[0], pos[1], ent[0], ent[1], 0.05)) pos = snapWalk(ent[0], ent[1]);
+    return camAt(pos, [site.cx, site.cy]);
+  }
+  function buildViews(id) {
+    if (views[id]) return views[id];
+    const keep = MAP && MAP.id;
+    loadMap(id);
+    const mid = [(SITES.A.cx + SITES.B.cx) / 2, (SITES.A.cy + SITES.B.cy) / 2];
+    const list = [
+      ['Bomb site A', siteCam('A')], ['Bomb site B', siteCam('B')],
+      ['Raider spawn', camAt(SPAWNS.rc, mid)], ['Warden spawn', camAt(SPAWNS.wc, SPAWNS.rc)],
+    ];
+    views[id] = list.map(([label, cam]) => ({ label, src: renderToCanvas(cam, 960, 540).toDataURL('image/jpeg', 0.88) }));
+    if (keep && keep !== id) loadMap(keep);
+    return views[id];
+  }
+  const MV = { id: null, z: 1, cx: 0, cy: 0, drag: null };
+  function openViewer(id) {
+    const def = MAP_DEFS.find(m => m.id === id); if (!def) return;
+    MV.id = id; MV.z = 1; MV.cx = def.grid[0].length / 2; MV.cy = def.grid.length / 2;
+    $('mv-name').textContent = def.name; $('mv-blurb').textContent = def.blurb;
+    $('mapview').classList.remove('hidden');
+    $('mv-img').removeAttribute('src'); $('mv-cap').textContent = 'Rendering…'; $('mv-thumbs').innerHTML = '';
+    drawLayout();
+    setTimeout(() => {
+      const v = buildViews(id); if (MV.id !== id) return;
+      const show = (i) => { $('mv-img').src = v[i].src; $('mv-cap').textContent = v[i].label; $('mv-thumbs').querySelectorAll('button').forEach((b, j) => b.classList.toggle('on', i === j)); };
+      $('mv-thumbs').innerHTML = v.map((x, i) => `<button data-i="${i}" aria-label="${x.label}"><img src="${x.src}" alt=""><small>${x.label}</small></button>`).join('');
+      $('mv-thumbs').querySelectorAll('button').forEach(b => b.onclick = () => show(+b.dataset.i));
+      show(0);
+    }, 20);
+    $('mv-close').focus();
+  }
+  function closeViewer() { $('mapview').classList.add('hidden'); MV.id = null; }
+  function layoutScale(cv, def) { const W = def.grid[0].length, H = def.grid.length; return Math.min(cv.width / W, cv.height / H) * MV.z; }
+  function drawLayout() {
+    const def = MAP_DEFS.find(m => m.id === MV.id); if (!def) return;
+    const cv = $('mv-canvas'), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const c = cv.getContext('2d'), g = def.grid, H = g.length, W = g[0].length, s = layoutScale(cv, def);
+    const ox = cv.width / 2 - MV.cx * s, oy = cv.height / 2 - MV.cy * s;
+    c.fillStyle = '#0b0d10'; c.fillRect(0, 0, cv.width, cv.height);
+    const col = { '.': '#6a604f', t: '#4a443b', a: '#b0503c', b: '#b0503c', p: '#93402f', q: '#93402f', T: '#b9823c', K: '#4473b4', C: '#7a5a34', X: '#2a2e35' };
+    const acc = { A: [0, 0, 0], B: [0, 0, 0], T: [0, 0, 0], K: [0, 0, 0] };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const ch = g[y][x], k = col[ch];
+      if (k) { c.fillStyle = k; c.fillRect(ox + x * s, oy + y * s, s + 0.6, s + 0.6); }
+      const key = ch === 'a' || ch === 'p' ? 'A' : ch === 'b' || ch === 'q' ? 'B' : ch === 'T' ? 'T' : ch === 'K' ? 'K' : null;
+      if (key) { acc[key][0] += x; acc[key][1] += y; acc[key][2]++; }
+    }
+    if (s > 14) { c.strokeStyle = 'rgba(0,0,0,0.25)'; c.lineWidth = 1; c.beginPath(); for (let x = 0; x <= W; x++) { c.moveTo(ox + x * s, oy); c.lineTo(ox + x * s, oy + H * s); } for (let y = 0; y <= H; y++) { c.moveTo(ox, oy + y * s); c.lineTo(ox + W * s, oy + y * s); } c.stroke(); }
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    const label = (k, text, size, fill) => { const q = acc[k]; if (!q[2]) return; const x = ox + (q[0] / q[2] + 0.5) * s, y = oy + (q[1] / q[2] + 0.5) * s; c.font = `bold ${size}px Rajdhani, sans-serif`; c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillText(text, x + 2, y + 2); c.fillStyle = fill; c.fillText(text, x, y); };
+    label('A', 'A', Math.max(18, s * 4), '#ffe9d2'); label('B', 'B', Math.max(18, s * 4), '#ffe9d2');
+    label('T', 'RAIDERS', Math.max(11, s * 1.6), '#ffe0b0'); label('K', 'WARDENS', Math.max(11, s * 1.6), '#dbe9ff');
+  }
+  function zoomLayout(f, px, py) {
+    const def = MAP_DEFS.find(m => m.id === MV.id); if (!def) return;
+    const cv = $('mv-canvas'), s0 = layoutScale(cv, def);
+    if (px === undefined) { px = cv.width / 2; py = cv.height / 2; }
+    const wx = MV.cx + (px - cv.width / 2) / s0, wy = MV.cy + (py - cv.height / 2) / s0;   // world point under cursor
+    MV.z = clamp(MV.z * f, 1, 8);
+    const s1 = layoutScale(cv, def);
+    MV.cx = wx - (px - cv.width / 2) / s1; MV.cy = wy - (py - cv.height / 2) / s1;
+    drawLayout();
+  }
+  function bindViewer() {
+    $('md-open').onclick = () => { if (G.settings.map !== 'random') openViewer(G.settings.map); };
+    $('mv-close').onclick = closeViewer;
+    $('mv-pick').onclick = () => { if (MV.id) pickMap(MV.id); closeViewer(); };
+    $('mapview').addEventListener('mousedown', (e) => { if (e.target.id === 'mapview') closeViewer(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && MV.id) { e.stopPropagation(); closeViewer(); } }, true);
+    const cv = $('mv-canvas'), dpr = () => Math.min(2, window.devicePixelRatio || 1);
+    cv.addEventListener('wheel', (e) => { e.preventDefault(); const r = cv.getBoundingClientRect(); zoomLayout(e.deltaY < 0 ? 1.2 : 1 / 1.2, (e.clientX - r.left) * dpr(), (e.clientY - r.top) * dpr()); }, { passive: false });
+    cv.addEventListener('pointerdown', (e) => { MV.drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); cv.classList.add('drag'); });
+    cv.addEventListener('pointermove', (e) => {
+      if (!MV.drag) return; const def = MAP_DEFS.find(m => m.id === MV.id); const s = layoutScale(cv, def) / dpr();
+      MV.cx -= (e.clientX - MV.drag.x) / s; MV.cy -= (e.clientY - MV.drag.y) / s; MV.drag = { x: e.clientX, y: e.clientY }; drawLayout();
+    });
+    const end = () => { MV.drag = null; cv.classList.remove('drag'); };
+    cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+    document.querySelectorAll('.mv-tools button').forEach(b => b.onclick = () => {
+      if (b.dataset.z === 'in') zoomLayout(1.4); else if (b.dataset.z === 'out') zoomLayout(1 / 1.4);
+      else { const def = MAP_DEFS.find(m => m.id === MV.id); MV.z = 1; MV.cx = def.grid[0].length / 2; MV.cy = def.grid.length / 2; drawLayout(); }
+    });
+    window.addEventListener('resize', () => { if (MV.id) drawLayout(); });
   }
 
   // ---------------- segmented controls ----------------
@@ -229,7 +326,8 @@ const MENU = (() => {
     af.innerHTML = ['All', ...BUY_MENU.map(c => c.name)].map((n, i) => `<button data-f="${n}" class="${i ? '' : 'on'}">${n}</button>`).join('');
     af.querySelectorAll('button').forEach(b => b.onclick = () => { af.querySelectorAll('button').forEach(o => o.classList.toggle('on', o === b)); renderArmory(b.dataset.f); });
     renderArmory('All');
+    bindViewer();
     buildShots(() => { markMap(); lobbyMaps(); });
   }
-  return { init, lobbyMaps, shots };
+  return { init, lobbyMaps, shots, openViewer };
 })();

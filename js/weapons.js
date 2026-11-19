@@ -44,6 +44,14 @@ const WEAPONS = {
   longshot: { name: 'Longshot .338', slot: 1, type: 'sniper', snd: 'sniper', price: 4750, dmg: 115, rate: 1.45, mag: 10, reserve: 30, reload: 2.9, pen: 0.97, rangeMod: 0.99, speed: 0.84,
     spread: { base: 0.13, scoped: 0.001, move: 0.25, perShot: 0, max: 0, recover: 1 }, kick: 0.05, kickMax: 0.08, side: 0.004, zoom: [40, 10], wood: '#4a5a3a' },
 };
+// Every gun can zoom: real scopes keep their levels (RMB cycles, wheel fine-tunes);
+// everything else gets a hold-RMB aim zoom with a modest FOV change.
+const ADS_FOV = { pistol: 74, smg: 70, rifle: 62, shotgun: 76, lmg: 66 };
+for (const k in WEAPONS) {
+  const d = WEAPONS[k]; d.key = k;
+  if (d.type === 'knife') continue;
+  if (d.zoom) d.scope = true; else { d.zoom = [ADS_FOV[d.type] || 70]; d.ads = true; }
+}
 const GEAR = {
   vest: { name: 'Kevlar Vest', price: 650 },
   vesthelm: { name: 'Kevlar + Helmet', price: 1000 },
@@ -101,7 +109,8 @@ function drawViewmodel(g, SW, SH, p, opt) {
   g.save();
   let ox = opt.bobX, oy = opt.bobY + opt.lower * SH;
   g.translate(SW / 2 + ox, SH + oy); g.scale(s, s);
-  if (opt.kick) { g.translate(opt.kick * 6, opt.kick * 18); g.rotate(-opt.kick * 0.03); }
+  if (opt.ads > 0 && w && w.ads) { const tx = { pistol: -190, smg: -250, rifle: -290, shotgun: -290, lmg: -310 }[w.type] || -270; g.translate(tx * opt.ads, -30 * opt.ads); }
+  if (opt.kick) { g.translate(opt.kick * 6, opt.kick * 18 * (1 - 0.5 * (opt.ads || 0))); g.rotate(-opt.kick * 0.03); }
   const slot = p.cur;
   if (slot === 3) { drawKnifeVM(g, opt, sleeve, glove, cuff); g.restore(); return; }
   if (slot === 4) { drawNadeVM(g, p, opt, sleeve, glove, cuff); g.restore(); return; }

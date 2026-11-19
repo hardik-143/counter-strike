@@ -192,3 +192,39 @@ kbd { font: 600 12px Inter, sans-serif; min-width: 26px; text-align: center; pad
 #lobby .card { width: min(980px, 100%); }
 @media (max-width: 1100px) { .play-layout { grid-template-columns: 1fr; } .setup { position: static; } .help-grid { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .menu { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } .nav { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; } .logo { font-size: 26px; flex-direction: row; gap: 8px; } .logo-sub, .nav-foot { display: none; } .tabs { flex-direction: row; overflow-x: auto; } .tab { font-size: 14px; padding: 8px 10px; } .panel { padding: 18px 16px; } .side-cards { grid-template-columns: 1fr; } }
+
+/* interface scale (Settings) */
+.menu, .overlay > .card, .overlay > .mv, #buy { zoom: var(--ui, 1); }
+/* map detail → opens the viewer */
+button.md-shot { display: block; width: 100%; padding: 0; margin: 0; border: 0; cursor: zoom-in; }
+.md-zoom { position: absolute; left: 8px; top: 8px; background: rgba(8,9,12,0.78); color: #fff; font: 600 12px Inter, sans-serif; padding: 4px 8px; border-radius: 6px; opacity: 0; transition: opacity .15s; }
+button.md-shot:hover .md-zoom, button.md-shot:focus-visible .md-zoom { opacity: 1; }
+.map-detail.rnd button.md-shot { cursor: default; } .map-detail.rnd .md-zoom { display: none; }
+/* map viewer */
+#mapview { z-index: 20; background: rgba(5,6,8,0.86); backdrop-filter: blur(4px); }
+.mv { width: min(1500px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 14px; background: rgba(14,16,20,0.96); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+.mv-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.mv-head h2 { font-family: var(--disp); font-size: 34px; letter-spacing: 2px; margin: 0; text-transform: uppercase; }
+.mv-head p { color: var(--mute); margin: 2px 0 0; }
+.mv-actions { display: flex; gap: 8px; align-items: center; }
+#mv-close { font-size: 20px; width: 44px; height: 44px; padding: 0; }
+.mv-body { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 14px; min-height: 0; }
+.mv-shots { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mv-main { position: relative; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: #15181d; }
+.mv-main img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
+#mv-cap { position: absolute; left: 10px; bottom: 10px; background: rgba(8,9,12,0.8); padding: 4px 10px; border-radius: 6px; font: 600 13px Inter, sans-serif; }
+.mv-thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.mv-thumbs button { margin: 0; padding: 0; border-radius: 8px; overflow: hidden; border: 2px solid transparent; background: #15181d; aspect-ratio: 16 / 9; position: relative; }
+.mv-thumbs button.on { border-color: var(--acc); }
+.mv-thumbs img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
+.mv-thumbs small { position: absolute; left: 4px; bottom: 4px; font-size: 10.5px; background: rgba(8,9,12,0.8); padding: 1px 5px; border-radius: 4px; }
+.mv-map { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+#mv-canvas { width: 100%; aspect-ratio: 1 / 1; max-height: 62vh; background: #0b0d10; border: 1px solid var(--line); border-radius: 10px; cursor: grab; touch-action: none; }
+#mv-canvas.drag { cursor: grabbing; }
+.mv-tools { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 6px; }
+.mv-tools button { margin: 0; width: 40px; height: 36px; padding: 0; font-size: 18px; background: rgba(14,16,20,0.9); }
+.mv-tools button[data-z="reset"] { font-size: 12px; }
+.mv-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: #c6cbd1; }
+.mv-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.mv-hint { color: #7f868e; }
+@media (max-width: 1000px) { .mv-body { grid-template-columns: 1fr; } }
